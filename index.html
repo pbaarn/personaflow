@@ -77,15 +77,25 @@
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
     <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
       
-      <!-- Brand & Active Hat Status -->
-      <div class="flex items-center justify-between gap-3">
+      <!-- Brand & Board Switcher -->
+      <div class="flex items-center justify-between gap-3 flex-wrap">
         <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm font-bold text-lg">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm font-bold text-lg shrink-0">
             🎭
           </div>
           <div>
             <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight">PersonaFlow</h1>
             <p class="text-xs text-slate-500 hidden sm:block">Wear one hat at a time. Start tiny.</p>
+          </div>
+
+          <!-- Board Switcher -->
+          <div class="flex items-center gap-1 ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200">
+            <select id="boardSwitcherSelect" onchange="switchBoard(this.value)" aria-label="Switch active board" class="max-w-[150px] sm:max-w-[200px] px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition cursor-pointer truncate">
+              <!-- Populated dynamically -->
+            </select>
+            <button type="button" onclick="openBoardsModal()" title="Manage boards (create, rename, delete)" aria-label="Manage boards" class="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs sm:text-sm font-medium transition shrink-0">
+              🗂️
+            </button>
           </div>
         </div>
 
@@ -168,7 +178,7 @@
           <button type="button" onclick="exportData()" class="hover:text-indigo-600 transition underline-offset-2 hover:underline">Export</button>
           <button type="button" onclick="triggerImportData()" class="hover:text-indigo-600 transition underline-offset-2 hover:underline">Import</button>
           <input type="file" id="importFileInput" accept="application/json,.json" class="hidden" onchange="handleImportFile(event)" />
-          <button type="button" onclick="resetDemoData()" class="hover:text-rose-600 transition underline-offset-2 hover:underline">Reset Demo</button>
+          <button type="button" onclick="openClearBoardModal()" class="hover:text-rose-600 transition underline-offset-2 hover:underline">Clear Board</button>
         </div>
       </div>
     </div>
@@ -587,11 +597,73 @@
     </div>
   </dialog>
 
+  <!-- MODAL 6: Manage Boards (Clients / Subjects) (Native <dialog>) -->
+  <dialog id="boardsModal" closedby="any" aria-labelledby="boardsModalTitle" class="p-0 rounded-2xl shadow-2xl border border-slate-200 w-[calc(100%-2rem)] max-w-xl max-h-[90vh] bg-white m-auto overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+      <div>
+        <h2 id="boardsModalTitle" class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <span>🗂️</span> Your Boards
+        </h2>
+        <p class="text-xs text-slate-500">Separate boards for each client, project, or subject.</p>
+      </div>
+      <form method="dialog">
+        <button type="submit" aria-label="Close boards dialog" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center">✕</button>
+      </form>
+    </div>
+
+    <div class="p-6 space-y-5 overflow-y-auto">
+      <!-- Existing Boards List -->
+      <div id="boardsManageList" class="space-y-2.5">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Create / Edit Board Form -->
+      <form id="boardForm" onsubmit="saveBoardForm(event)" class="pt-4 border-t border-slate-100 space-y-3">
+        <input type="hidden" id="editBoardId" />
+        <div class="flex items-center justify-between">
+          <h3 id="boardFormTitle" class="text-xs font-bold uppercase tracking-wider text-slate-500">Create New Board</h3>
+          <button type="button" id="cancelEditBoardBtn" onclick="resetBoardForm()" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-800 hover:underline">
+            Cancel Edit
+          </button>
+        </div>
+        <div class="grid grid-cols-4 gap-2">
+          <input type="text" id="boardEmojiInput" maxlength="4" value="📁" required aria-label="Board emoji" class="col-span-1 px-3 py-2 rounded-xl border border-slate-300 text-center text-lg focus:outline-none focus:border-indigo-500" title="Choose an emoji" />
+          <input type="text" id="boardNameInput" required aria-label="Board name" placeholder="Board name (e.g., Client: Acme, Thesis)" class="col-span-3 px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-indigo-500" />
+        </div>
+        <input type="text" id="boardDescInput" aria-label="Board description" placeholder="Optional note (e.g., Q4 retainer deliverables)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-indigo-500" />
+        <label id="copyPersonasRow" class="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600">
+          <input type="checkbox" id="copyPersonasCheckbox" checked class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+          <span>Copy personas from current board</span>
+        </label>
+        <button type="submit" id="boardFormSubmitBtn" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition">
+          + Create Board
+        </button>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL 7: Confirmation Dialog (Native <dialog>) -->
+  <dialog id="confirmModal" closedby="any" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalMessage" class="p-0 rounded-2xl shadow-2xl border border-slate-200 w-[calc(100%-2rem)] max-w-sm bg-white m-auto overflow-hidden">
+    <div class="p-6 space-y-3">
+      <h2 id="confirmModalTitle" class="text-base font-bold text-slate-900">Confirm Action</h2>
+      <p id="confirmModalMessage" class="text-sm text-slate-600 leading-relaxed"></p>
+      <div class="pt-3 flex items-center justify-end gap-2">
+        <button type="button" id="confirmCancelBtn" autofocus onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">
+          Cancel
+        </button>
+        <button type="button" id="confirmProceedBtn" onclick="executeConfirmAction()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-xs transition">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </dialog>
+
   <script>
     // =========================================================================
     // STATE & DATA STRUCTURES
     // =========================================================================
-    const STORAGE_KEY = 'personaflow_planner_v2';
+    const STORAGE_KEY = 'personaflow_planner_v3';
+    const LEGACY_STORAGE_KEY = 'personaflow_planner_v2';
     const GIST_CONFIG_KEY = 'personaflow_gist_config_v1';
     const GIST_FILENAME = 'personaflow-state.json';
 
@@ -617,85 +689,51 @@
       high:   { label: 'Deep Work', icon: '🔥', style: 'text-rose-700 bg-rose-50 border-rose-200' }
     };
 
+    const DEFAULT_PERSONAS = [
+      { id: 'p-planner', name: 'Planner', emoji: '🧭', color: 'purple', mantra: 'Break big goals into tiny, obvious next steps.' },
+      { id: 'p-worker',  name: 'Worker',  emoji: '🛠️', color: 'indigo', mantra: 'Heads down, one sprint at a time—done beats perfect.' },
+      { id: 'p-qa',      name: 'QA',      emoji: '🔍', color: 'emerald', mantra: 'Verify edge cases calmly and ship with confidence.' },
+      { id: 'p-manager', name: 'Manager', emoji: '📋', color: 'amber', mantra: 'Unblock priorities, protect focus, and clear bottlenecks.' }
+    ];
+
+    function cloneObj(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    function createBoardObject({
+      id = 'b-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      name = 'Main Board',
+      emoji = '📋',
+      description = '',
+      activePersonaFilter = 'all',
+      collapsedCards = {},
+      personas = cloneObj(DEFAULT_PERSONAS),
+      tasks = []
+    } = {}) {
+      return {
+        id,
+        name: String(name || 'Untitled Board').trim(),
+        emoji: String(emoji || '📋').trim(),
+        description: String(description || '').trim(),
+        activePersonaFilter: activePersonaFilter || 'all',
+        collapsedCards: collapsedCards && typeof collapsedCards === 'object' ? collapsedCards : {},
+        personas: Array.isArray(personas) && personas.length > 0 ? personas : cloneObj(DEFAULT_PERSONAS),
+        tasks: Array.isArray(tasks) ? tasks : []
+      };
+    }
+
     const DEFAULT_STATE = {
-      activePersonaFilter: 'all',
-      collapsedCards: {},
+      version: 3,
+      activeBoardId: 'b-main',
       updatedAt: null,
-      personas: [
-        { id: 'p-planner', name: 'Planner', emoji: '🧭', color: 'purple', mantra: 'Break big goals into tiny, obvious next steps.' },
-        { id: 'p-worker',  name: 'Worker',  emoji: '🛠️', color: 'indigo', mantra: 'Heads down, one sprint at a time—done beats perfect.' },
-        { id: 'p-qa',      name: 'QA',      emoji: '🔍', color: 'emerald', mantra: 'Verify edge cases calmly and ship with confidence.' },
-        { id: 'p-manager', name: 'Manager', emoji: '📋', color: 'amber', mantra: 'Unblock priorities, protect focus, and clear bottlenecks.' }
-      ],
-      tasks: [
-        {
-          id: 't-1',
-          title: 'Draft landing page core value proposition',
-          personaId: 'p-worker',
-          column: 'doing',
-          friction: 'low',
-          duration: 15,
-          firstStep: 'Open editor and write 3 terrible headline ideas without deleting.',
-          subtasks: [
-            { id: 's-1', text: 'Write 3 headline hooks', done: true },
-            { id: 's-2', text: 'Draft 2-sentence subheadline', done: false },
-            { id: 's-3', text: 'Pick primary CTA button text', done: false }
-          ],
-          notes: 'Focus on user pain point: context switching across roles.'
-        },
-        {
-          id: 't-2',
-          title: 'Break down Q4 milestone into 15-minute sprints',
-          personaId: 'p-planner',
-          column: 'ready',
-          friction: 'low',
-          duration: 15,
-          firstStep: 'List the top 3 deliverables on a blank card.',
-          subtasks: [
-            { id: 's-4', text: 'Identify smallest shippable slice', done: false },
-            { id: 's-5', text: 'Assign low-friction starting steps', done: false }
-          ],
-          notes: ''
-        },
-        {
-          id: 't-3',
-          title: 'Test checkout flow & mobile responsiveness',
-          personaId: 'p-qa',
-          column: 'ready',
-          friction: 'low',
-          duration: 15,
-          firstStep: 'Open preview in mobile viewport and click through primary flow.',
-          subtasks: [
-            { id: 's-6', text: 'Check empty input validation', done: false },
-            { id: 's-7', text: 'Verify touch targets on small screens', done: false }
-          ],
-          notes: 'Log any visual glitches as separate low-friction cards.'
-        },
-        {
-          id: 't-4',
-          title: 'Review weekly bottlenecks & reprioritize backlog',
-          personaId: 'p-manager',
-          column: 'backlog',
-          friction: 'medium',
-          duration: 25,
-          firstStep: 'Scan Doing Now and Today’s Queue to trim scope overload.',
-          subtasks: [
-            { id: 's-8', text: 'Archive stale tasks', done: false },
-            { id: 's-9', text: 'Confirm top priority for tomorrow', done: false }
-          ],
-          notes: ''
-        },
-        {
-          id: 't-5',
-          title: 'Set up local project repository & lint rules',
-          personaId: 'p-worker',
-          column: 'done',
-          friction: 'low',
-          duration: 15,
-          firstStep: 'Initialize repo and run initial build check.',
-          subtasks: [],
-          notes: 'Clean baseline ready.'
-        }
+      boards: [
+        createBoardObject({
+          id: 'b-main',
+          name: 'Main Board',
+          emoji: '📋',
+          description: 'Default workspace',
+          tasks: []
+        })
       ]
     };
 
@@ -708,33 +746,77 @@
       lastSyncedAt: null
     };
 
-    function cloneObj(obj) {
-      return JSON.parse(JSON.stringify(obj));
+    function normalizeBoard(rawBoard, fallbackIndex = 0) {
+      if (!rawBoard || !Array.isArray(rawBoard.personas) || !Array.isArray(rawBoard.tasks)) {
+        return null;
+      }
+      return createBoardObject({
+        id: rawBoard.id || `b-${Date.now()}-${fallbackIndex}`,
+        name: rawBoard.name || (fallbackIndex === 0 ? 'Main Board' : `Board ${fallbackIndex + 1}`),
+        emoji: rawBoard.emoji || '📋',
+        description: rawBoard.description || '',
+        activePersonaFilter: rawBoard.activePersonaFilter || 'all',
+        collapsedCards: rawBoard.collapsedCards,
+        personas: rawBoard.personas,
+        tasks: rawBoard.tasks
+      });
     }
 
     function normalizeState(parsed) {
-      if (!parsed || !Array.isArray(parsed.personas) || !Array.isArray(parsed.tasks)) {
-        return null;
+      if (!parsed || typeof parsed !== 'object') return null;
+
+      // v3 multi-board format
+      if (Array.isArray(parsed.boards)) {
+        const boards = parsed.boards.map((b, idx) => normalizeBoard(b, idx)).filter(Boolean);
+        if (boards.length === 0) return null;
+        const hasActive = boards.some(b => b.id === parsed.activeBoardId);
+        return {
+          version: 3,
+          activeBoardId: hasActive ? parsed.activeBoardId : boards[0].id,
+          updatedAt: parsed.updatedAt || null,
+          boards
+        };
       }
-      if (!parsed.collapsedCards || typeof parsed.collapsedCards !== 'object') {
-        parsed.collapsedCards = {};
+
+      // v2 single-board format -> migrate to v3
+      if (Array.isArray(parsed.personas) && Array.isArray(parsed.tasks)) {
+        const migratedBoard = normalizeBoard({ ...parsed, id: 'b-main', name: 'Main Board', emoji: '📋' }, 0);
+        if (!migratedBoard) return null;
+        return {
+          version: 3,
+          activeBoardId: migratedBoard.id,
+          updatedAt: parsed.updatedAt || null,
+          boards: [migratedBoard]
+        };
       }
-      if (!parsed.activePersonaFilter) {
-        parsed.activePersonaFilter = 'all';
-      }
-      return parsed;
+
+      return null;
     }
 
     function loadState() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return cloneObj(DEFAULT_STATE);
-        const normalized = normalizeState(JSON.parse(raw));
-        return normalized || cloneObj(DEFAULT_STATE);
+        const rawV3 = localStorage.getItem(STORAGE_KEY);
+        if (rawV3) {
+          const normalized = normalizeState(JSON.parse(rawV3));
+          if (normalized) return normalized;
+        }
+        const rawV2 = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (rawV2) {
+          const migrated = normalizeState(JSON.parse(rawV2));
+          if (migrated) return migrated;
+        }
+        return cloneObj(DEFAULT_STATE);
       } catch (err) {
         console.error('Failed to load state:', err);
         return cloneObj(DEFAULT_STATE);
       }
+    }
+
+    function getActiveBoard() {
+      if (!state || !Array.isArray(state.boards) || state.boards.length === 0) {
+        state = cloneObj(DEFAULT_STATE);
+      }
+      return state.boards.find(b => b.id === state.activeBoardId) || state.boards[0];
     }
 
     function loadGistConfig() {
@@ -762,6 +844,7 @@
     let syncUiState = gistConfig.enabled && gistConfig.token ? 'synced' : 'local'; // 'local' | 'syncing' | 'synced' | 'error'
     let lastSyncError = '';
     let gistSyncTimer = null;
+    let pendingConfirmAction = null;
 
     let tempSubtasks = [];
     let suggestedTaskId = null;
@@ -1146,7 +1229,236 @@
     }
 
     // =========================================================================
-    // DATA EXPORT, IMPORT & DEMO RESET
+    // CONFIRMATION MODAL HELPERS
+    // =========================================================================
+    function openConfirmModal({ title, message, confirmLabel = 'Confirm', onConfirm }) {
+      document.getElementById('confirmModalTitle').textContent = title;
+      document.getElementById('confirmModalMessage').textContent = message;
+      document.getElementById('confirmProceedBtn').textContent = confirmLabel;
+      pendingConfirmAction = onConfirm;
+      const dialog = document.getElementById('confirmModal');
+      if (!dialog.open) dialog.showModal();
+    }
+
+    function closeConfirmModal() {
+      pendingConfirmAction = null;
+      const dialog = document.getElementById('confirmModal');
+      if (dialog.open) dialog.close();
+    }
+
+    function executeConfirmAction() {
+      const action = pendingConfirmAction;
+      closeConfirmModal();
+      if (typeof action === 'function') action();
+    }
+
+    // =========================================================================
+    // MULTI-BOARD MANAGEMENT (CLIENTS / SUBJECTS)
+    // =========================================================================
+    function renderBoardSwitcher() {
+      const select = document.getElementById('boardSwitcherSelect');
+      const board = getActiveBoard();
+      if (select) {
+        select.innerHTML = state.boards.map(b =>
+          `<option value="${b.id}" ${b.id === board.id ? 'selected' : ''}>${escapeHtml(b.emoji)} ${escapeHtml(b.name)}</option>`
+        ).join('');
+      }
+      document.title = `${board.name} — PersonaFlow`;
+    }
+
+    function switchBoard(boardId) {
+      if (!boardId || boardId === state.activeBoardId) return;
+      const target = state.boards.find(b => b.id === boardId);
+      if (!target) return;
+      state.activeBoardId = target.id;
+      stopFocusSession();
+      saveState();
+      renderAll();
+      showToast(`Switched to ${target.emoji} ${target.name}`);
+    }
+
+    function openBoardsModal() {
+      resetBoardForm();
+      renderBoardsManageList();
+      const dialog = document.getElementById('boardsModal');
+      if (!dialog.open) dialog.showModal();
+    }
+
+    function closeBoardsModal() {
+      const dialog = document.getElementById('boardsModal');
+      if (dialog.open) dialog.close();
+    }
+
+    function renderBoardsManageList() {
+      const list = document.getElementById('boardsManageList');
+      if (!list) return;
+      const activeId = getActiveBoard().id;
+
+      list.innerHTML = state.boards.map(b => {
+        const isActive = b.id === activeId;
+        const openCount = b.tasks.filter(t => t.column !== 'done').length;
+        const totalCount = b.tasks.length;
+        return `
+          <div class="flex items-center justify-between gap-3 p-3 rounded-xl border ${isActive ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200 bg-slate-50/70'}">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-bold text-slate-900">${escapeHtml(b.emoji)} ${escapeHtml(b.name)}</span>
+                ${isActive ? '<span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-600 text-white">Active</span>' : ''}
+                <span class="text-xs text-slate-500">${openCount} open · ${totalCount} total</span>
+              </div>
+              ${b.description ? `<p class="text-xs text-slate-500 mt-0.5 truncate">${escapeHtml(b.description)}</p>` : ''}
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              ${!isActive ? `
+                <button type="button" onclick="switchBoard('${b.id}'); closeBoardsModal();" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition">
+                  Open
+                </button>
+              ` : ''}
+              <button type="button" onclick="startEditBoard('${b.id}')" class="px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200/70 transition">
+                Edit
+              </button>
+              <button type="button" onclick="duplicateBoard('${b.id}')" title="Duplicate board" class="px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200/70 transition">
+                Copy
+              </button>
+              ${state.boards.length > 1 ? `
+                <button type="button" onclick="requestDeleteBoard('${b.id}')" class="px-2 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 transition">
+                  Delete
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function startEditBoard(boardId) {
+      const b = state.boards.find(item => item.id === boardId);
+      if (!b) return;
+      document.getElementById('editBoardId').value = b.id;
+      document.getElementById('boardEmojiInput').value = b.emoji || '📋';
+      document.getElementById('boardNameInput').value = b.name;
+      document.getElementById('boardDescInput').value = b.description || '';
+      document.getElementById('boardFormTitle').textContent = `Edit "${b.name}"`;
+      document.getElementById('boardFormSubmitBtn').textContent = 'Save Board Changes';
+      document.getElementById('cancelEditBoardBtn').classList.remove('hidden');
+      document.getElementById('copyPersonasRow').classList.add('hidden');
+      document.getElementById('boardNameInput').focus();
+    }
+
+    function resetBoardForm() {
+      document.getElementById('editBoardId').value = '';
+      document.getElementById('boardEmojiInput').value = '📁';
+      document.getElementById('boardNameInput').value = '';
+      document.getElementById('boardDescInput').value = '';
+      document.getElementById('boardFormTitle').textContent = 'Create New Board';
+      document.getElementById('boardFormSubmitBtn').textContent = '+ Create Board';
+      document.getElementById('cancelEditBoardBtn').classList.add('hidden');
+      document.getElementById('copyPersonasRow').classList.remove('hidden');
+    }
+
+    function saveBoardForm(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editBoardId').value;
+      const emoji = document.getElementById('boardEmojiInput').value.trim() || '📁';
+      const name = document.getElementById('boardNameInput').value.trim();
+      const description = document.getElementById('boardDescInput').value.trim();
+      if (!name) return;
+
+      if (editId) {
+        const b = state.boards.find(item => item.id === editId);
+        if (b) {
+          b.emoji = emoji;
+          b.name = name;
+          b.description = description;
+          saveState();
+          resetBoardForm();
+          renderBoardsManageList();
+          renderAll();
+          showToast(`Updated board "${name}".`);
+        }
+        return;
+      }
+
+      const copyPersonas = document.getElementById('copyPersonasCheckbox').checked;
+      const currentBoard = getActiveBoard();
+      const personas = copyPersonas
+        ? cloneObj(currentBoard.personas)
+        : cloneObj(DEFAULT_PERSONAS);
+
+      const newBoard = createBoardObject({
+        name,
+        emoji,
+        description,
+        personas,
+        tasks: []
+      });
+
+      state.boards.push(newBoard);
+      state.activeBoardId = newBoard.id;
+      stopFocusSession();
+      saveState();
+      resetBoardForm();
+      renderBoardsManageList();
+      renderAll();
+      closeBoardsModal();
+      showToast(`Created board "${emoji} ${name}".`);
+    }
+
+    function duplicateBoard(boardId) {
+      const src = state.boards.find(b => b.id === boardId);
+      if (!src) return;
+      const copy = createBoardObject({
+        name: `${src.name} (Copy)`,
+        emoji: src.emoji,
+        description: src.description,
+        personas: cloneObj(src.personas),
+        tasks: cloneObj(src.tasks),
+        collapsedCards: cloneObj(src.collapsedCards || {})
+      });
+      state.boards.push(copy);
+      state.activeBoardId = copy.id;
+      stopFocusSession();
+      saveState();
+      renderBoardsManageList();
+      renderAll();
+      showToast(`Duplicated "${src.name}".`);
+    }
+
+    function requestDeleteBoard(boardId) {
+      if (state.boards.length <= 1) return;
+      const target = state.boards.find(b => b.id === boardId);
+      if (!target) return;
+
+      if (target.tasks.length === 0) {
+        deleteBoard(boardId);
+        return;
+      }
+
+      openConfirmModal({
+        title: `Delete "${target.name}"?`,
+        message: `This will permanently delete "${target.emoji} ${target.name}" and its ${target.tasks.length} card${target.tasks.length === 1 ? '' : 's'}.`,
+        confirmLabel: 'Delete Board',
+        onConfirm: () => deleteBoard(boardId)
+      });
+    }
+
+    function deleteBoard(boardId) {
+      if (state.boards.length <= 1) return;
+      const target = state.boards.find(b => b.id === boardId);
+      state.boards = state.boards.filter(b => b.id !== boardId);
+      if (state.activeBoardId === boardId) {
+        state.activeBoardId = state.boards[0].id;
+        stopFocusSession();
+      }
+      saveState();
+      resetBoardForm();
+      renderBoardsManageList();
+      renderAll();
+      showToast(`Deleted board "${target?.name || 'Board'}".`);
+    }
+
+    // =========================================================================
+    // DATA EXPORT, IMPORT & CLEAR BOARD
     // =========================================================================
     function exportData() {
       try {
@@ -1155,14 +1467,14 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `personaflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `personaflow-workspace-${new Date().toISOString().slice(0, 10)}.json`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        showToast('📦 Board exported as JSON.');
+        showToast(`📦 Exported ${state.boards.length} board${state.boards.length === 1 ? '' : 's'} as JSON.`);
       } catch (err) {
-        showToast('Could not export board data.', 'error');
+        showToast('Could not export workspace data.', 'error');
       }
     }
 
@@ -1180,14 +1492,36 @@
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const parsed = JSON.parse(String(reader.result || ''));
-          const normalized = normalizeState(parsed.state || parsed);
-          if (!normalized) throw new Error('Invalid format');
-          state = normalized;
-          saveState();
-          stopFocusSession();
-          renderAll();
-          showToast(`📥 Imported ${state.tasks.length} cards from JSON.`);
+          const rawParsed = JSON.parse(String(reader.result || ''));
+          const payload = rawParsed.state || rawParsed;
+
+          // Full multi-board workspace import
+          if (payload && Array.isArray(payload.boards)) {
+            const normalized = normalizeState(payload);
+            if (!normalized) throw new Error('Invalid workspace format');
+            state = normalized;
+            saveState();
+            stopFocusSession();
+            renderAll();
+            showToast(`📥 Imported workspace (${state.boards.length} boards).`);
+            return;
+          }
+
+          // Legacy single-board JSON -> import as a new board
+          if (payload && Array.isArray(payload.personas) && Array.isArray(payload.tasks)) {
+            const baseName = file.name.replace(/\.json$/i, '') || 'Imported Board';
+            const importedBoard = normalizeBoard({ ...payload, id: undefined, name: baseName }, state.boards.length);
+            if (!importedBoard) throw new Error('Invalid board format');
+            state.boards.push(importedBoard);
+            state.activeBoardId = importedBoard.id;
+            saveState();
+            stopFocusSession();
+            renderAll();
+            showToast(`📥 Imported "${importedBoard.name}" (${importedBoard.tasks.length} cards).`);
+            return;
+          }
+
+          throw new Error('Invalid format');
         } catch (err) {
           showToast('Invalid PersonaFlow JSON file.', 'error');
         }
@@ -1195,26 +1529,43 @@
       reader.readAsText(file);
     }
 
-    function resetDemoData() {
-      state = cloneObj(DEFAULT_STATE);
-      saveState();
+    function openClearBoardModal() {
+      const board = getActiveBoard();
+      if (board.tasks.length === 0) {
+        showToast('This board is already empty.');
+        return;
+      }
+      openConfirmModal({
+        title: `Clear "${board.name}"?`,
+        message: `Remove all ${board.tasks.length} card${board.tasks.length === 1 ? '' : 's'} from "${board.emoji} ${board.name}"? Your personas will be kept. This cannot be undone.`,
+        confirmLabel: 'Clear Board',
+        onConfirm: clearActiveBoard
+      });
+    }
+
+    function clearActiveBoard() {
+      const board = getActiveBoard();
+      board.tasks = [];
+      board.collapsedCards = {};
       stopFocusSession();
+      saveState();
       renderAll();
-      showToast('🔄 Reset to default Planner, Worker, QA & Manager cards.');
+      showToast(`🧹 Cleared all cards from "${board.name}".`);
     }
 
     // =========================================================================
     // BULK ADD TASKS (SMART PARSER + LIVE PREVIEW)
     // =========================================================================
     function openBulkModal(defaultColumn = 'backlog') {
+      const board = getActiveBoard();
       const personaSelect = document.getElementById('bulkDefaultPersona');
-      personaSelect.innerHTML = state.personas.map(p =>
+      personaSelect.innerHTML = board.personas.map(p =>
         `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`
       ).join('');
 
-      personaSelect.value = state.activePersonaFilter !== 'all'
-        ? state.activePersonaFilter
-        : (state.personas[0]?.id || '');
+      personaSelect.value = board.activePersonaFilter !== 'all'
+        ? board.activePersonaFilter
+        : (board.personas[0]?.id || '');
 
       document.getElementById('bulkDefaultColumn').value = defaultColumn;
       updateBulkPreview();
@@ -1250,12 +1601,13 @@
     }
 
     function matchPersonaToken(token) {
+      const board = getActiveBoard();
       const needle = token.toLowerCase();
       // Exact name match first, then startsWith, then includes
       return (
-        state.personas.find(p => p.name.toLowerCase() === needle) ||
-        state.personas.find(p => p.name.toLowerCase().startsWith(needle)) ||
-        state.personas.find(p => p.name.toLowerCase().includes(needle)) ||
+        board.personas.find(p => p.name.toLowerCase() === needle) ||
+        board.personas.find(p => p.name.toLowerCase().startsWith(needle)) ||
+        board.personas.find(p => p.name.toLowerCase().includes(needle)) ||
         null
       );
     }
@@ -1376,8 +1728,9 @@
     }
 
     function getBulkDefaults() {
+      const board = getActiveBoard();
       return {
-        personaId: document.getElementById('bulkDefaultPersona')?.value || state.personas[0]?.id || '',
+        personaId: document.getElementById('bulkDefaultPersona')?.value || board.personas[0]?.id || '',
         column: document.getElementById('bulkDefaultColumn')?.value || 'backlog',
         friction: document.getElementById('bulkDefaultFriction')?.value || 'low',
         duration: Number(document.getElementById('bulkDefaultDuration')?.value) || 15
@@ -1416,8 +1769,9 @@
         return;
       }
 
+      const board = getActiveBoard();
       previewList.innerHTML = tasks.map(t => {
-        const persona = state.personas.find(p => p.id === t.personaId) || { emoji: '📌', name: 'General', color: 'indigo' };
+        const persona = board.personas.find(p => p.id === t.personaId) || { emoji: '📌', name: 'General', color: 'indigo' };
         const cStyle = COLOR_STYLES[persona.color] || COLOR_STYLES.indigo;
         const fMeta = FRICTION_META[t.friction] || FRICTION_META.low;
         const col = COLUMNS.find(c => c.id === t.column) || COLUMNS[0];
@@ -1478,7 +1832,7 @@
       }));
 
       // Prepend in order so the first line appears at the top
-      state.tasks.unshift(...newTasks);
+      getActiveBoard().tasks.unshift(...newTasks);
       input.value = '';
       saveState();
       closeBulkModal();
@@ -1490,7 +1844,7 @@
     // RENDERING: PERSONA BAR & KANBAN BOARD
     // =========================================================================
     function setPersonaFilter(personaId) {
-      state.activePersonaFilter = personaId;
+      getActiveBoard().activePersonaFilter = personaId;
       saveState();
       renderAll();
     }
@@ -1499,8 +1853,9 @@
       const bar = document.getElementById('personaFilterBar');
       if (!bar) return;
 
-      const allActive = state.activePersonaFilter === 'all';
-      const totalOpen = state.tasks.filter(t => t.column !== 'done').length;
+      const board = getActiveBoard();
+      const allActive = board.activePersonaFilter === 'all';
+      const totalOpen = board.tasks.filter(t => t.column !== 'done').length;
 
       let html = `
         <button
@@ -1517,10 +1872,10 @@
         </button>
       `;
 
-      state.personas.forEach(p => {
-        const isActive = state.activePersonaFilter === p.id;
+      board.personas.forEach(p => {
+        const isActive = board.activePersonaFilter === p.id;
         const cStyle = COLOR_STYLES[p.color] || COLOR_STYLES.indigo;
-        const openCount = state.tasks.filter(t => t.personaId === p.id && t.column !== 'done').length;
+        const openCount = board.tasks.filter(t => t.personaId === p.id && t.column !== 'done').length;
 
         html += `
           <button
@@ -1544,11 +1899,12 @@
     }
 
     function getVisibleTasks() {
+      const board = getActiveBoard();
       const searchQuery = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
       const frictionFilter = document.getElementById('frictionFilter')?.value || 'all';
 
-      return state.tasks.filter(task => {
-        if (state.activePersonaFilter !== 'all' && task.personaId !== state.activePersonaFilter) return false;
+      return board.tasks.filter(task => {
+        if (board.activePersonaFilter !== 'all' && task.personaId !== board.activePersonaFilter) return false;
         if (frictionFilter !== 'all' && task.friction !== frictionFilter) return false;
         if (searchQuery) {
           const hay = `${task.title} ${task.firstStep || ''} ${task.notes || ''}`.toLowerCase();
@@ -1559,9 +1915,10 @@
     }
 
     function renderBoard() {
-      const board = document.getElementById('boardColumns');
-      if (!board) return;
+      const boardEl = document.getElementById('boardColumns');
+      if (!boardEl) return;
 
+      const activeBoard = getActiveBoard();
       const filteredTasks = getVisibleTasks();
 
       // Update summary counter & collapse button state
@@ -1573,11 +1930,11 @@
       updateGlobalCollapseButton(filteredTasks);
 
       // Active persona mantra banner if filtered to a single persona
-      const activePersona = state.activePersonaFilter !== 'all'
-        ? state.personas.find(p => p.id === state.activePersonaFilter)
+      const activePersona = activeBoard.activePersonaFilter !== 'all'
+        ? activeBoard.personas.find(p => p.id === activeBoard.activePersonaFilter)
         : null;
 
-      board.innerHTML = COLUMNS.map((col, colIdx) => {
+      boardEl.innerHTML = COLUMNS.map((col, colIdx) => {
         const colTasks = filteredTasks.filter(t => t.column === col.id);
         const wipWarning = col.id === 'doing' && colTasks.length > 2;
 
@@ -1647,10 +2004,11 @@
     }
 
     function renderCardHtml(task, colIdx) {
-      const persona = state.personas.find(p => p.id === task.personaId) || { name: 'General', emoji: '📌', color: 'indigo' };
+      const board = getActiveBoard();
+      const persona = board.personas.find(p => p.id === task.personaId) || { name: 'General', emoji: '📌', color: 'indigo' };
       const cStyle = COLOR_STYLES[persona.color] || COLOR_STYLES.indigo;
       const fMeta = FRICTION_META[task.friction] || FRICTION_META.low;
-      const isCollapsed = Boolean(state.collapsedCards && state.collapsedCards[task.id]);
+      const isCollapsed = Boolean(board.collapsedCards && board.collapsedCards[task.id]);
 
       const subtasks = task.subtasks || [];
       const doneSubs = subtasks.filter(s => s.done).length;
@@ -1759,20 +2117,22 @@
     }
 
     function toggleCardCollapse(taskId) {
-      if (!state.collapsedCards) state.collapsedCards = {};
-      state.collapsedCards[taskId] = !state.collapsedCards[taskId];
+      const board = getActiveBoard();
+      if (!board.collapsedCards) board.collapsedCards = {};
+      board.collapsedCards[taskId] = !board.collapsedCards[taskId];
       saveState();
       renderBoard();
     }
 
     function toggleAllCards() {
-      if (!state.collapsedCards) state.collapsedCards = {};
+      const board = getActiveBoard();
+      if (!board.collapsedCards) board.collapsedCards = {};
       const visibleTasks = getVisibleTasks();
-      const targetTasks = visibleTasks.length > 0 ? visibleTasks : state.tasks;
-      const areAllCollapsed = targetTasks.length > 0 && targetTasks.every(t => state.collapsedCards[t.id]);
+      const targetTasks = visibleTasks.length > 0 ? visibleTasks : board.tasks;
+      const areAllCollapsed = targetTasks.length > 0 && targetTasks.every(t => board.collapsedCards[t.id]);
 
       targetTasks.forEach(t => {
-        state.collapsedCards[t.id] = !areAllCollapsed;
+        board.collapsedCards[t.id] = !areAllCollapsed;
       });
 
       saveState();
@@ -1780,18 +2140,20 @@
     }
 
     function updateGlobalCollapseButton(visibleTasks) {
+      const board = getActiveBoard();
       const btnIcon = document.getElementById('toggleAllCollapseIcon');
       const btnLabel = document.getElementById('toggleAllCollapseLabel');
       if (!btnIcon || !btnLabel) return;
 
-      const targetTasks = visibleTasks.length > 0 ? visibleTasks : state.tasks;
-      const allCollapsed = targetTasks.length > 0 && targetTasks.every(t => state.collapsedCards?.[t.id]);
+      const targetTasks = visibleTasks.length > 0 ? visibleTasks : board.tasks;
+      const allCollapsed = targetTasks.length > 0 && targetTasks.every(t => board.collapsedCards?.[t.id]);
 
       btnIcon.textContent = allCollapsed ? '⊞' : '⊟';
       btnLabel.textContent = allCollapsed ? 'Expand All' : 'Collapse All';
     }
 
     function renderAll() {
+      renderBoardSwitcher();
       renderPersonaBar();
       renderBoard();
       updateSyncStatusUI();
@@ -1834,7 +2196,7 @@
     }
 
     function moveTaskToColumn(taskId, targetColumnId) {
-      const task = state.tasks.find(t => t.id === taskId);
+      const task = getActiveBoard().tasks.find(t => t.id === taskId);
       if (!task || task.column === targetColumnId) return;
 
       task.column = targetColumnId;
@@ -1848,7 +2210,7 @@
     }
 
     function toggleSubtask(taskId, subtaskId) {
-      const task = state.tasks.find(t => t.id === taskId);
+      const task = getActiveBoard().tasks.find(t => t.id === taskId);
       if (!task) return;
       const sub = (task.subtasks || []).find(s => s.id === subtaskId);
       if (sub) {
@@ -1862,15 +2224,16 @@
     // TASK MODAL (CREATE / EDIT)
     // =========================================================================
     function openTaskModal(taskId = null, defaultColumn = 'ready') {
+      const board = getActiveBoard();
       const modal = document.getElementById('taskModal');
       const personaSelect = document.getElementById('taskPersonaSelect');
 
-      personaSelect.innerHTML = state.personas.map(p =>
+      personaSelect.innerHTML = board.personas.map(p =>
         `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`
       ).join('');
 
       if (taskId) {
-        const task = state.tasks.find(t => t.id === taskId);
+        const task = board.tasks.find(t => t.id === taskId);
         if (!task) return;
         document.getElementById('taskModalTitle').textContent = 'Edit Persona Card';
         document.getElementById('taskId').value = task.id;
@@ -1887,9 +2250,9 @@
         document.getElementById('taskModalTitle').textContent = 'New Persona Card';
         document.getElementById('taskId').value = '';
         document.getElementById('taskTitleInput').value = '';
-        personaSelect.value = state.activePersonaFilter !== 'all'
-          ? state.activePersonaFilter
-          : (state.personas[0]?.id || '');
+        personaSelect.value = board.activePersonaFilter !== 'all'
+          ? board.activePersonaFilter
+          : (board.personas[0]?.id || '');
         document.getElementById('taskColumnSelect').value = defaultColumn;
         document.getElementById('taskFrictionSelect').value = 'low';
         document.getElementById('taskDurationSelect').value = '15';
@@ -1952,12 +2315,13 @@
         subtasks: tempSubtasks
       };
 
+      const board = getActiveBoard();
       if (id) {
-        const idx = state.tasks.findIndex(t => t.id === id);
-        if (idx !== -1) state.tasks[idx] = { ...state.tasks[idx], ...payload };
+        const idx = board.tasks.findIndex(t => t.id === id);
+        if (idx !== -1) board.tasks[idx] = { ...board.tasks[idx], ...payload };
         showToast('Card updated.');
       } else {
-        state.tasks.unshift({ id: 't-' + Date.now(), ...payload });
+        board.tasks.unshift({ id: 't-' + Date.now(), ...payload });
         showToast('Card added to board.');
       }
 
@@ -1969,8 +2333,9 @@
     function deleteCurrentTask() {
       const id = document.getElementById('taskId').value;
       if (!id) return;
-      state.tasks = state.tasks.filter(t => t.id !== id);
-      if (state.collapsedCards) delete state.collapsedCards[id];
+      const board = getActiveBoard();
+      board.tasks = board.tasks.filter(t => t.id !== id);
+      if (board.collapsedCards) delete board.collapsedCards[id];
       saveState();
       closeTaskModal();
       renderAll();
@@ -1994,10 +2359,11 @@
     }
 
     function renderPersonaManageList() {
+      const board = getActiveBoard();
       const list = document.getElementById('personaManageList');
-      list.innerHTML = state.personas.map(p => {
+      list.innerHTML = board.personas.map(p => {
         const cStyle = COLOR_STYLES[p.color] || COLOR_STYLES.indigo;
-        const count = state.tasks.filter(t => t.personaId === p.id).length;
+        const count = board.tasks.filter(t => t.personaId === p.id).length;
         return `
           <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/70">
             <div class="min-w-0">
@@ -2007,7 +2373,7 @@
               </div>
               <p class="text-xs text-slate-500 mt-1 truncate">${escapeHtml(p.mantra || 'No mindset cue set')}</p>
             </div>
-            ${state.personas.length > 1 ? `
+            ${board.personas.length > 1 ? `
               <button type="button" onclick="deletePersona('${p.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 transition shrink-0">
                 Remove
               </button>
@@ -2025,7 +2391,7 @@
       const color = document.getElementById('newPersonaColor').value;
       if (!name) return;
 
-      state.personas.push({
+      getActiveBoard().personas.push({
         id: 'p-' + Date.now(),
         name,
         emoji,
@@ -2042,13 +2408,14 @@
     }
 
     function deletePersona(personaId) {
-      if (state.personas.length <= 1) return;
-      const fallbackId = state.personas.find(p => p.id !== personaId).id;
-      state.tasks.forEach(t => {
+      const board = getActiveBoard();
+      if (board.personas.length <= 1) return;
+      const fallbackId = board.personas.find(p => p.id !== personaId).id;
+      board.tasks.forEach(t => {
         if (t.personaId === personaId) t.personaId = fallbackId;
       });
-      state.personas = state.personas.filter(p => p.id !== personaId);
-      if (state.activePersonaFilter === personaId) state.activePersonaFilter = 'all';
+      board.personas = board.personas.filter(p => p.id !== personaId);
+      if (board.activePersonaFilter === personaId) board.activePersonaFilter = 'all';
       saveState();
       renderPersonaManageList();
       renderAll();
@@ -2059,12 +2426,13 @@
     // ANTI-PROCRASTINATION LAUNCHER & FOCUS TIMER
     // =========================================================================
     function openFocusLauncher() {
+      const board = getActiveBoard();
       const select = document.getElementById('launcherPersonaSelect');
       select.innerHTML = `<option value="all">🌐 Any Persona (Lowest Friction)</option>` +
-        state.personas.map(p => `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`).join('');
+        board.personas.map(p => `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`).join('');
 
-      if (state.activePersonaFilter !== 'all') {
-        select.value = state.activePersonaFilter;
+      if (board.activePersonaFilter !== 'all') {
+        select.value = board.activePersonaFilter;
       }
 
       pickSuggestedTask();
@@ -2080,11 +2448,12 @@
     }
 
     function pickSuggestedTask(shuffle = false) {
+      const board = getActiveBoard();
       const personaId = document.getElementById('launcherPersonaSelect').value;
       const box = document.getElementById('suggestedTaskBox');
       const startBtn = document.getElementById('startSuggestedFocusBtn');
 
-      let candidates = state.tasks.filter(t => t.column !== 'done');
+      let candidates = board.tasks.filter(t => t.column !== 'done');
       if (personaId !== 'all') {
         candidates = candidates.filter(t => t.personaId === personaId);
       }
@@ -2113,7 +2482,7 @@
       }
 
       suggestedTaskId = chosen.id;
-      const persona = state.personas.find(p => p.id === chosen.personaId) || { emoji: '🎯', name: 'Focus' };
+      const persona = board.personas.find(p => p.id === chosen.personaId) || { emoji: '🎯', name: 'Focus' };
 
       box.innerHTML = `
         <div class="flex items-center justify-between text-xs">
@@ -2137,7 +2506,8 @@
     }
 
     function startFocusForTask(taskId) {
-      const task = state.tasks.find(t => t.id === taskId);
+      const board = getActiveBoard();
+      const task = board.tasks.find(t => t.id === taskId);
       if (!task) return;
 
       if (task.column === 'backlog' || task.column === 'ready') {
@@ -2148,7 +2518,7 @@
 
       if (focusSession.intervalId) clearInterval(focusSession.intervalId);
 
-      const persona = state.personas.find(p => p.id === task.personaId) || { emoji: '🎭', name: 'Persona' };
+      const persona = board.personas.find(p => p.id === task.personaId) || { emoji: '🎭', name: 'Persona' };
       focusSession = {
         active: true,
         taskId: task.id,
@@ -2182,7 +2552,7 @@
 
     function toggleTimer() {
       if (focusSession.secondsRemaining <= 0) {
-        const task = state.tasks.find(t => t.id === focusSession.taskId);
+        const task = getActiveBoard().tasks.find(t => t.id === focusSession.taskId);
         focusSession.secondsRemaining = ((task?.duration) || 15) * 60;
         focusSession.running = true;
         focusSession.intervalId = setInterval(tickTimer, 1000);

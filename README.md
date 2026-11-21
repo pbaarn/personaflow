@@ -6,7 +6,9 @@ Role-based anti-procrastination Kanban planner — wear one hat at a time, start
 
 ## Features
 
+- **Multi-Board Management:** Create, rename, duplicate, and switch between separate boards for different clients, projects, or subjects. Each board maintains its own cards and personas.
 - **Persona / Hat Filtering:** Switch between Planner, Worker, QA, Manager, or custom personas so one role doesn't overwhelm another.
+- **Clear Board:** Wipe all cards from the active board with a confirmation prompt while keeping your personas intact.
 - **Anti-Procrastination Focus Mode:** "Beat Procrastination" picks your lowest-friction card and starts a single-task sprint timer with a tiny first step.
 - **Bulk Add Tasks:** Dump multiple tasks at once (one per line) with live card previews, Markdown checklist/bullet support, indented sub-steps, and optional inline tags:
   - `@persona` — assign persona (e.g. `@worker`, `@qa`, `@planner`)
