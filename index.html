@@ -1,0 +1,2344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PersonaFlow — Role-Based Anti-Procrastination Planner</title>
+  <!-- Load Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Load Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Subtle custom scrollbars for horizontal board & columns */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, 0.6);
+    }
+    .drag-over {
+      background-color: rgba(99, 102, 241, 0.08) !important;
+      border-color: rgba(99, 102, 241, 0.5) !important;
+    }
+    .dragging {
+      opacity: 0.5;
+      transform: scale(0.98);
+    }
+
+    /* Native modal dialog scroll containment & backdrop */
+    dialog:modal {
+      overscroll-behavior: contain;
+    }
+    dialog::backdrop {
+      background-color: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(2px);
+      overflow: hidden;
+      overscroll-behavior: contain;
+    }
+    dialog[open] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Auto-growing bulk task textarea with stable width */
+    .bulk-textarea {
+      field-sizing: content;
+      width: 100%;
+      height: auto;
+      min-block-size: 9lh;
+      max-block-size: 18lh;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col selection:bg-indigo-100 selection:text-indigo-900">
+
+  <!-- Top Navigation & Persona Switcher Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+      
+      <!-- Brand & Active Hat Status -->
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm font-bold text-lg">
+            🎭
+          </div>
+          <div>
+            <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight">PersonaFlow</h1>
+            <p class="text-xs text-slate-500 hidden sm:block">Wear one hat at a time. Start tiny.</p>
+          </div>
+        </div>
+
+        <!-- Mobile Quick Actions -->
+        <div class="flex items-center gap-1.5 lg:hidden">
+          <button type="button" onclick="openFocusLauncher()" class="px-2.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold hover:bg-amber-100 transition flex items-center gap-1">
+            <span>⚡</span> Unstick
+          </button>
+          <button type="button" onclick="openBulkModal()" class="px-2.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold hover:bg-indigo-100 transition">
+            + Bulk
+          </button>
+          <button type="button" onclick="openTaskModal()" class="px-2.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition shadow-xs">
+            + Task
+          </button>
+        </div>
+      </div>
+
+      <!-- Persona Pills Bar (Horizontal scroll on mobile) -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0" id="personaFilterBar">
+        <!-- Rendered dynamically via JS -->
+      </div>
+
+      <!-- Desktop Action Buttons -->
+      <div class="hidden lg:flex items-center gap-2 shrink-0">
+        <button type="button" onclick="openFocusLauncher()" title="Pick an effortless task for your current persona" class="px-3.5 py-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200/80 text-sm font-semibold hover:bg-amber-100 transition flex items-center gap-1.5 shadow-2xs">
+          <span>⚡</span> Beat Procrastination
+        </button>
+        <button type="button" onclick="openPersonaModal()" class="px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition flex items-center gap-1.5">
+          <span>⚙️</span> Personas
+        </button>
+        <button type="button" onclick="openBulkModal()" title="Dump multiple tasks at once with smart syntax" class="px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200/80 text-sm font-semibold hover:bg-indigo-100 transition flex items-center gap-1.5">
+          <span>📝</span> Bulk Add
+        </button>
+        <button type="button" onclick="openTaskModal()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition shadow-xs flex items-center gap-1.5">
+          <span>+</span> New Card
+        </button>
+      </div>
+    </div>
+
+    <!-- Sub-bar: Search, Energy Filter, Collapse Toggle & Stats -->
+    <div class="bg-slate-50/80 border-t border-slate-100 px-4 sm:px-6 py-2">
+      <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Search input -->
+          <div class="relative">
+            <input type="text" id="searchInput" oninput="renderBoard()" placeholder="Filter cards..." aria-label="Filter cards" class="pl-7 pr-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 w-40 sm:w-56 transition" />
+            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+          </div>
+
+          <!-- Friction / Energy Filter -->
+          <select id="frictionFilter" onchange="renderBoard()" aria-label="Filter by energy level" class="py-1.5 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+            <option value="all">All Energy Levels</option>
+            <option value="low">🌱 Low Friction (2-Min Start)</option>
+            <option value="medium">⚡ Moderate Focus</option>
+            <option value="high">🔥 Deep Work</option>
+          </select>
+
+          <!-- Global Collapse / Expand Toggle -->
+          <button type="button" id="toggleAllCollapseBtn" onclick="toggleAllCards()" class="py-1.5 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium transition flex items-center gap-1.5" title="Collapse or expand all cards for a cleaner overview">
+            <span id="toggleAllCollapseIcon">⊟</span>
+            <span id="toggleAllCollapseLabel">Collapse All</span>
+          </button>
+
+          <button type="button" onclick="openPersonaModal()" class="lg:hidden py-1.5 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium">
+            ⚙️ Manage Hats
+          </button>
+        </div>
+
+        <!-- Progress, Sync & Data Controls -->
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 text-slate-500">
+          <span id="statsSummary" class="font-medium text-slate-600">0 completed today</span>
+          <div class="h-3.5 w-px bg-slate-300 hidden sm:block"></div>
+
+          <!-- Persistence / Gist Sync Status Button -->
+          <button type="button" id="syncStatusBtn" onclick="openGistSyncModal()" class="py-1 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium transition flex items-center gap-1.5" title="Configure Local Storage & GitHub Gist sync">
+            <span id="syncStatusDot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span id="syncStatusLabel">Local Storage</span>
+          </button>
+
+          <button type="button" onclick="exportData()" class="hover:text-indigo-600 transition underline-offset-2 hover:underline">Export</button>
+          <button type="button" onclick="triggerImportData()" class="hover:text-indigo-600 transition underline-offset-2 hover:underline">Import</button>
+          <input type="file" id="importFileInput" accept="application/json,.json" class="hidden" onchange="handleImportFile(event)" />
+          <button type="button" onclick="resetDemoData()" class="hover:text-rose-600 transition underline-offset-2 hover:underline">Reset Demo</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Active Focus Session Banner (Hidden until active) -->
+  <div id="focusBanner" class="hidden bg-indigo-950 text-white px-4 py-3 shadow-md border-b border-indigo-800">
+    <div class="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span id="focusPersonaBadge" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-800 text-indigo-100"></span>
+        <div>
+          <p class="text-xs text-indigo-300 uppercase tracking-wider font-semibold">Single-Task Focus Mode</p>
+          <p id="focusTaskTitle" class="text-sm sm:text-base font-bold text-white"></p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="px-3.5 py-1.5 rounded-xl bg-indigo-900/90 border border-indigo-700 font-mono text-lg font-bold tracking-wider text-amber-300" id="timerDisplay">
+          15:00
+        </div>
+        <button type="button" onclick="toggleTimer()" id="timerToggleBtn" class="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm transition">
+          Pause
+        </button>
+        <button type="button" onclick="completeFocusTask()" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs sm:text-sm transition">
+          ✓ Done
+        </button>
+        <button type="button" onclick="stopFocusSession()" class="p-2 rounded-xl text-indigo-300 hover:text-white hover:bg-indigo-900 transition" title="Exit Focus Mode">
+          ✕
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Kanban Board Area -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-5 overflow-x-auto">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 items-start min-h-[calc(100vh-190px)]" id="boardColumns">
+      <!-- Columns rendered dynamically -->
+    </div>
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- MODAL 1: Create / Edit Task Card -->
+  <div id="taskModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+        <h2 id="taskModalTitle" class="text-lg font-bold text-slate-900">New Persona Card</h2>
+        <button type="button" onclick="closeTaskModal()" aria-label="Close modal" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center">✕</button>
+      </div>
+
+      <form id="taskForm" onsubmit="saveTask(event)" class="p-6 space-y-4">
+        <input type="hidden" id="taskId" />
+
+        <!-- Task Title -->
+        <div>
+          <label for="taskTitleInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">What needs doing?</label>
+          <input type="text" id="taskTitleInput" required placeholder="e.g., Outline Q4 product roadmap" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 text-sm font-medium" />
+        </div>
+
+        <!-- Persona & Column Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="taskPersonaSelect" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Which Persona / Hat?</label>
+            <select id="taskPersonaSelect" required class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+          <div>
+            <label for="taskColumnSelect" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Column</label>
+            <select id="taskColumnSelect" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+              <option value="backlog">🧠 Brain Dump</option>
+              <option value="ready">🎯 Today’s Queue</option>
+              <option value="doing">🔥 Doing Now</option>
+              <option value="done">✅ Done</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Friction / Energy Level & Estimated Time -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="taskFrictionSelect" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Starting Friction</label>
+            <select id="taskFrictionSelect" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+              <option value="low">🌱 Low (Easy / Quick win)</option>
+              <option value="medium">⚡ Moderate (Standard focus)</option>
+              <option value="high">🔥 Deep Work (Heavy lifting)</option>
+            </select>
+          </div>
+          <div>
+            <label for="taskDurationSelect" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Focus Sprint (Mins)</label>
+            <select id="taskDurationSelect" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+              <option value="5">5 mins (Just start!)</option>
+              <option value="15" selected>15 mins (Micro-sprint)</option>
+              <option value="25">25 mins (Pomodoro)</option>
+              <option value="45">45 mins (Deep block)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tiny First Step (Anti-procrastination trigger) -->
+        <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3.5">
+          <label for="taskFirstStepInput" class="block text-xs font-bold text-amber-900 mb-1">🪜 Ridiculously Tiny First Step (Anti-Procrastination Hook)</label>
+          <input type="text" id="taskFirstStepInput" placeholder="e.g., Open a blank doc and write 3 bullet headers" class="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30" />
+        </div>
+
+        <!-- Micro-Checklist Breakdown -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="newSubtaskInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Sub-steps Checklist</label>
+          </div>
+          <div id="subtasksList" class="space-y-2 mb-2">
+            <!-- Dynamic subtask rows -->
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="newSubtaskInput" placeholder="Add a small step..." class="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-indigo-500" />
+            <button type="button" onclick="addSubtaskRow()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">Add</button>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div>
+          <label for="taskNotesInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Context / Notes</label>
+          <textarea id="taskNotesInput" rows="2" placeholder="Links, mindset cues, or definition of done..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"></textarea>
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+          <button type="button" id="deleteTaskBtn" onclick="deleteCurrentTask()" class="hidden px-4 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 text-sm font-semibold transition">
+            Delete
+          </button>
+          <div class="flex items-center gap-2 ml-auto">
+            <button type="button" onclick="closeTaskModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-xs transition">
+              Save Card
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Manage Personas / Hats -->
+  <div id="personaModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Your Personas & Hats</h2>
+          <p class="text-xs text-slate-500">Separate your identities so one role doesn't overwhelm another.</p>
+        </div>
+        <button type="button" onclick="closePersonaModal()" aria-label="Close modal" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center">✕</button>
+      </div>
+
+      <div class="p-6 space-y-5">
+        <!-- Existing Personas List -->
+        <div id="personaManageList" class="space-y-2.5">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Add New Persona Form -->
+        <form onsubmit="addPersona(event)" class="pt-4 border-t border-slate-100 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Create New Persona</h3>
+          <div class="grid grid-cols-4 gap-2">
+            <input type="text" id="newPersonaEmoji" maxlength="4" value="🚀" required aria-label="Persona emoji" class="col-span-1 px-3 py-2 rounded-xl border border-slate-300 text-center text-lg focus:outline-none focus:border-indigo-500" title="Choose an emoji" />
+            <input type="text" id="newPersonaName" required aria-label="Persona name" placeholder="Role name (e.g., Writer, Architect)" class="col-span-3 px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-indigo-500" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input type="text" id="newPersonaMantra" aria-label="Persona mindset cue" placeholder="Mindset cue (e.g., Draft messy, edit later)" class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-indigo-500" />
+            <select id="newPersonaColor" aria-label="Persona color" class="px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm focus:outline-none focus:border-indigo-500">
+              <option value="indigo">Indigo (Worker / Focus)</option>
+              <option value="emerald">Emerald (QA / Verification)</option>
+              <option value="amber">Amber (Manager / Priority)</option>
+              <option value="purple">Purple (Planner / Strategy)</option>
+              <option value="rose">Rose (Urgent / Firefighting)</option>
+              <option value="sky">Sky (Ops / Maintenance)</option>
+            </select>
+          </div>
+          <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition">
+            + Add Persona
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Anti-Procrastination "Unstick Me" Launcher -->
+  <div id="focusLauncherModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden">
+      <div class="bg-amber-50 px-6 py-4 border-b border-amber-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">⚡</span>
+          <h2 class="text-base font-bold text-amber-950">Beat Procrastination</h2>
+        </div>
+        <button type="button" onclick="closeFocusLauncher()" aria-label="Close modal" class="w-8 h-8 rounded-lg text-amber-800/60 hover:text-amber-950 hover:bg-amber-100 flex items-center justify-center">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <p class="text-sm text-slate-600 leading-relaxed">
+          Overwhelmed? Commit to <strong>just one tiny sprint</strong> wearing a single persona hat. Ignore everything else on the board.
+        </p>
+
+        <div>
+          <label for="launcherPersonaSelect" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Which hat are you wearing right now?</label>
+          <select id="launcherPersonaSelect" onchange="pickSuggestedTask()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-800">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+
+        <!-- Suggested Card Box -->
+        <div id="suggestedTaskBox" class="rounded-xl border-2 border-indigo-100 bg-indigo-50/40 p-4 space-y-2">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="flex items-center justify-between gap-2 pt-2">
+          <button type="button" onclick="pickSuggestedTask(true)" class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition">
+            🎲 Shuffle Another
+          </button>
+          <button type="button" id="startSuggestedFocusBtn" onclick="startSuggestedFocus()" class="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-xs transition">
+            Start Focus Timer →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: Bulk Add Tasks (Native <dialog>) -->
+  <dialog id="bulkTaskModal" closedby="any" aria-labelledby="bulkModalTitle" class="p-0 rounded-2xl shadow-2xl border border-slate-200 w-[calc(100%-2rem)] max-w-4xl max-h-[90vh] bg-white m-auto overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+      <div>
+        <h2 id="bulkModalTitle" class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <span>📝</span> Bulk Add Tasks
+        </h2>
+        <p class="text-xs text-slate-500">One task per line. Paste Markdown checklists, indent sub-steps, or use optional inline tags.</p>
+      </div>
+      <form method="dialog">
+        <button type="submit" aria-label="Close bulk add dialog" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center">✕</button>
+      </form>
+    </div>
+
+    <form id="bulkTaskForm" onsubmit="submitBulkTasks(event)" class="flex flex-col flex-1 min-h-0 overflow-y-auto">
+      <!-- Default Attributes Bar -->
+      <div class="px-6 py-3 bg-slate-50 border-b border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
+        <div>
+          <label for="bulkDefaultPersona" class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Default Persona</label>
+          <select id="bulkDefaultPersona" onchange="updateBulkPreview()" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+        <div>
+          <label for="bulkDefaultColumn" class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Default Column</label>
+          <select id="bulkDefaultColumn" onchange="updateBulkPreview()" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+            <option value="backlog" selected>🧠 Brain Dump</option>
+            <option value="ready">🎯 Today’s Queue</option>
+            <option value="doing">🔥 Doing Now</option>
+            <option value="done">✅ Done</option>
+          </select>
+        </div>
+        <div>
+          <label for="bulkDefaultFriction" class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Default Friction</label>
+          <select id="bulkDefaultFriction" onchange="updateBulkPreview()" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+            <option value="low" selected>🌱 Low Friction</option>
+            <option value="medium">⚡ Moderate</option>
+            <option value="high">🔥 Deep Work</option>
+          </select>
+        </div>
+        <div>
+          <label for="bulkDefaultDuration" class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Default Sprint</label>
+          <select id="bulkDefaultDuration" onchange="updateBulkPreview()" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+            <option value="5">5 mins</option>
+            <option value="15" selected>15 mins</option>
+            <option value="25">25 mins</option>
+            <option value="45">45 mins</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Two-pane Editor + Live Preview -->
+      <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-5 flex-1 min-h-0">
+        <!-- Input Pane -->
+        <div class="flex flex-col gap-2.5">
+          <div class="flex items-center justify-between">
+            <label for="bulkTasksInput" class="text-xs font-bold uppercase tracking-wider text-slate-600">Task List</label>
+            <div class="flex items-center gap-2 text-xs">
+              <button type="button" onclick="insertBulkExample()" class="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline">Insert Example</button>
+              <span class="text-slate-300">•</span>
+              <button type="button" onclick="clearBulkInput()" class="text-slate-500 hover:text-rose-600 hover:underline">Clear</button>
+            </div>
+          </div>
+
+          <textarea
+            id="bulkTasksInput"
+            autofocus
+            oninput="updateBulkPreview()"
+            placeholder="Write or paste tasks (one per line)...&#10;&#10;Outline Q4 roadmap @planner 25m > Open blank doc&#10;  - List top 3 goals&#10;  - Share draft with team&#10;Verify login edge cases @qa !low #ready&#10;Fix navbar alignment @worker 15m !med"
+            class="bulk-textarea px-3.5 py-3 rounded-xl border border-slate-300 text-sm text-slate-900 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+          ></textarea>
+
+          <!-- Smart Syntax Cheat Sheet -->
+          <div class="rounded-xl bg-slate-50 border border-slate-200/80 p-3 space-y-1.5 text-[11px] text-slate-600">
+            <p class="font-semibold text-slate-700">Optional inline tags (plain lines work too):</p>
+            <div class="flex flex-wrap gap-1.5">
+              <code class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-indigo-700">@persona</code>
+              <code class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-emerald-700">!low / !med / !high</code>
+              <code class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700">5m / 15m / 25m / 45m</code>
+              <code class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-purple-700">#backlog #ready #doing #done</code>
+              <code class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-amber-800">&gt; tiny first step</code>
+              <code class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700">2 spaces = sub-step</code>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Preview Pane -->
+        <div class="flex flex-col gap-2.5 min-h-[220px]">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-600">Live Preview</span>
+            <span id="bulkPreviewCount" class="text-xs font-semibold text-indigo-600">0 cards ready</span>
+          </div>
+          <div id="bulkPreviewList" class="flex-1 rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2 overflow-y-auto max-h-[340px]">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3 shrink-0">
+        <span class="text-xs text-slate-400 hidden sm:inline">Tip: Press <kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px]">⌘/Ctrl + Enter</kbd> to add immediately</span>
+        <div class="flex items-center gap-2 ml-auto">
+          <button type="button" onclick="closeBulkModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">
+            Cancel
+          </button>
+          <button type="submit" id="bulkSubmitBtn" disabled class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold shadow-xs transition">
+            Add 0 Cards
+          </button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- MODAL 5: Persistence & GitHub Gist Sync (Native <dialog>) -->
+  <dialog id="gistSyncModal" closedby="any" aria-labelledby="gistSyncTitle" class="p-0 rounded-2xl shadow-2xl border border-slate-200 w-[calc(100%-2rem)] max-w-lg max-h-[90vh] bg-white m-auto overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+      <div>
+        <h2 id="gistSyncTitle" class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <span>☁️</span> Storage & GitHub Gist Sync
+        </h2>
+        <p class="text-xs text-slate-500">Always saved in Local Storage. Optionally sync via a private GitHub Gist.</p>
+      </div>
+      <form method="dialog">
+        <button type="submit" aria-label="Close sync settings dialog" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center">✕</button>
+      </form>
+    </div>
+
+    <div class="p-6 space-y-5 overflow-y-auto">
+      <!-- Current Storage Mode Summary -->
+      <div id="gistStatusBanner" class="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs space-y-1">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Gist Configuration Form -->
+      <form id="gistConfigForm" onsubmit="saveAndConnectGist(event)" class="space-y-4">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="gistTokenInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">GitHub Personal Access Token</label>
+            <a href="https://github.com/settings/tokens/new?scopes=gist&description=PersonaFlow+Sync" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-indigo-600 hover:underline">
+              Create token (gist scope) ↗
+            </a>
+          </div>
+          <div class="flex gap-2">
+            <input type="password" id="gistTokenInput" autocomplete="off" placeholder="ghp_... or github_pat_..." class="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+            <button type="button" onclick="toggleTokenVisibility()" id="toggleTokenBtn" class="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-600 transition">
+              Show
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Stored only in this browser's <code>localStorage</code>. Never uploaded to the Gist or JSON exports.</p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="gistIdInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Gist ID <span class="font-normal normal-case text-slate-400">(optional)</span></label>
+            <div id="gistLinkActions" class="hidden flex items-center gap-2 text-xs">
+              <button type="button" onclick="copyGistId()" class="text-indigo-600 hover:underline font-medium">Copy ID</button>
+              <span class="text-slate-300">•</span>
+              <a id="openGistExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline font-medium">Open Gist ↗</a>
+            </div>
+          </div>
+          <input type="text" id="gistIdInput" autocomplete="off" placeholder="Leave blank to auto-create a new secret Gist" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+          <p class="text-[11px] text-slate-500 mt-1">Paste an existing Gist ID to sync with another device.</p>
+        </div>
+
+        <label class="flex items-center gap-2.5 cursor-pointer select-none pt-1">
+          <input type="checkbox" id="gistAutoSyncCheckbox" checked class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+          <span class="text-sm text-slate-700 font-medium">Auto-sync changes to Gist (debounced 1.5s)</span>
+        </label>
+
+        <div class="pt-2 flex flex-wrap items-center gap-2">
+          <button type="submit" id="gistSaveConnectBtn" class="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-xs transition">
+            Connect & Sync
+          </button>
+          <button type="button" id="gistPushBtn" onclick="manualPushGist()" class="hidden px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition" title="Upload local board to Gist">
+            ↑ Push
+          </button>
+          <button type="button" id="gistPullBtn" onclick="manualPullGist()" class="hidden px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition" title="Download board from Gist">
+            ↓ Pull
+          </button>
+        </div>
+      </form>
+
+      <!-- Disconnect Action -->
+      <div id="gistDisconnectSection" class="hidden pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+        <span class="text-xs text-slate-500">Switch back to Local Storage only (keeps your local cards).</span>
+        <button type="button" onclick="disconnectGist()" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold transition shrink-0">
+          Disconnect Gist
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    // =========================================================================
+    // STATE & DATA STRUCTURES
+    // =========================================================================
+    const STORAGE_KEY = 'personaflow_planner_v2';
+    const GIST_CONFIG_KEY = 'personaflow_gist_config_v1';
+    const GIST_FILENAME = 'personaflow-state.json';
+
+    const COLUMNS = [
+      { id: 'backlog', title: 'Brain Dump', icon: '🧠', subtitle: 'Parked out of sight' },
+      { id: 'ready',   title: 'Today’s Queue', icon: '🎯', subtitle: 'Queued for this hat' },
+      { id: 'doing',   title: 'Doing Now', icon: '🔥', subtitle: 'Limit 1–2 active' },
+      { id: 'done',    title: 'Done', icon: '✅', subtitle: 'Momentum built' }
+    ];
+
+    const COLOR_STYLES = {
+      indigo:  { badge: 'bg-indigo-100 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500', pillActive: 'bg-indigo-600 text-white border-indigo-600' },
+      emerald: { badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', dot: 'bg-emerald-500', pillActive: 'bg-emerald-600 text-white border-emerald-600' },
+      amber:   { badge: 'bg-amber-100 text-amber-900 border-amber-200', dot: 'bg-amber-500', pillActive: 'bg-amber-500 text-slate-950 border-amber-500' },
+      rose:    { badge: 'bg-rose-100 text-rose-800 border-rose-200', dot: 'bg-rose-500', pillActive: 'bg-rose-600 text-white border-rose-600' },
+      sky:     { badge: 'bg-sky-100 text-sky-800 border-sky-200', dot: 'bg-sky-500', pillActive: 'bg-sky-600 text-white border-sky-600' },
+      purple:  { badge: 'bg-purple-100 text-purple-800 border-purple-200', dot: 'bg-purple-500', pillActive: 'bg-purple-600 text-white border-purple-600' }
+    };
+
+    const FRICTION_META = {
+      low:    { label: 'Low Friction', icon: '🌱', style: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+      medium: { label: 'Moderate', icon: '⚡', style: 'text-amber-700 bg-amber-50 border-amber-200' },
+      high:   { label: 'Deep Work', icon: '🔥', style: 'text-rose-700 bg-rose-50 border-rose-200' }
+    };
+
+    const DEFAULT_STATE = {
+      activePersonaFilter: 'all',
+      collapsedCards: {},
+      updatedAt: null,
+      personas: [
+        { id: 'p-planner', name: 'Planner', emoji: '🧭', color: 'purple', mantra: 'Break big goals into tiny, obvious next steps.' },
+        { id: 'p-worker',  name: 'Worker',  emoji: '🛠️', color: 'indigo', mantra: 'Heads down, one sprint at a time—done beats perfect.' },
+        { id: 'p-qa',      name: 'QA',      emoji: '🔍', color: 'emerald', mantra: 'Verify edge cases calmly and ship with confidence.' },
+        { id: 'p-manager', name: 'Manager', emoji: '📋', color: 'amber', mantra: 'Unblock priorities, protect focus, and clear bottlenecks.' }
+      ],
+      tasks: [
+        {
+          id: 't-1',
+          title: 'Draft landing page core value proposition',
+          personaId: 'p-worker',
+          column: 'doing',
+          friction: 'low',
+          duration: 15,
+          firstStep: 'Open editor and write 3 terrible headline ideas without deleting.',
+          subtasks: [
+            { id: 's-1', text: 'Write 3 headline hooks', done: true },
+            { id: 's-2', text: 'Draft 2-sentence subheadline', done: false },
+            { id: 's-3', text: 'Pick primary CTA button text', done: false }
+          ],
+          notes: 'Focus on user pain point: context switching across roles.'
+        },
+        {
+          id: 't-2',
+          title: 'Break down Q4 milestone into 15-minute sprints',
+          personaId: 'p-planner',
+          column: 'ready',
+          friction: 'low',
+          duration: 15,
+          firstStep: 'List the top 3 deliverables on a blank card.',
+          subtasks: [
+            { id: 's-4', text: 'Identify smallest shippable slice', done: false },
+            { id: 's-5', text: 'Assign low-friction starting steps', done: false }
+          ],
+          notes: ''
+        },
+        {
+          id: 't-3',
+          title: 'Test checkout flow & mobile responsiveness',
+          personaId: 'p-qa',
+          column: 'ready',
+          friction: 'low',
+          duration: 15,
+          firstStep: 'Open preview in mobile viewport and click through primary flow.',
+          subtasks: [
+            { id: 's-6', text: 'Check empty input validation', done: false },
+            { id: 's-7', text: 'Verify touch targets on small screens', done: false }
+          ],
+          notes: 'Log any visual glitches as separate low-friction cards.'
+        },
+        {
+          id: 't-4',
+          title: 'Review weekly bottlenecks & reprioritize backlog',
+          personaId: 'p-manager',
+          column: 'backlog',
+          friction: 'medium',
+          duration: 25,
+          firstStep: 'Scan Doing Now and Today’s Queue to trim scope overload.',
+          subtasks: [
+            { id: 's-8', text: 'Archive stale tasks', done: false },
+            { id: 's-9', text: 'Confirm top priority for tomorrow', done: false }
+          ],
+          notes: ''
+        },
+        {
+          id: 't-5',
+          title: 'Set up local project repository & lint rules',
+          personaId: 'p-worker',
+          column: 'done',
+          friction: 'low',
+          duration: 15,
+          firstStep: 'Initialize repo and run initial build check.',
+          subtasks: [],
+          notes: 'Clean baseline ready.'
+        }
+      ]
+    };
+
+    const DEFAULT_GIST_CONFIG = {
+      enabled: false,
+      token: '',
+      gistId: '',
+      filename: GIST_FILENAME,
+      autoSync: true,
+      lastSyncedAt: null
+    };
+
+    function cloneObj(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    function normalizeState(parsed) {
+      if (!parsed || !Array.isArray(parsed.personas) || !Array.isArray(parsed.tasks)) {
+        return null;
+      }
+      if (!parsed.collapsedCards || typeof parsed.collapsedCards !== 'object') {
+        parsed.collapsedCards = {};
+      }
+      if (!parsed.activePersonaFilter) {
+        parsed.activePersonaFilter = 'all';
+      }
+      return parsed;
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return cloneObj(DEFAULT_STATE);
+        const normalized = normalizeState(JSON.parse(raw));
+        return normalized || cloneObj(DEFAULT_STATE);
+      } catch (err) {
+        console.error('Failed to load state:', err);
+        return cloneObj(DEFAULT_STATE);
+      }
+    }
+
+    function loadGistConfig() {
+      try {
+        const raw = localStorage.getItem(GIST_CONFIG_KEY);
+        if (!raw) return cloneObj(DEFAULT_GIST_CONFIG);
+        const parsed = JSON.parse(raw);
+        return { ...DEFAULT_GIST_CONFIG, ...parsed };
+      } catch (err) {
+        console.error('Failed to load Gist config:', err);
+        return cloneObj(DEFAULT_GIST_CONFIG);
+      }
+    }
+
+    function saveGistConfig() {
+      try {
+        localStorage.setItem(GIST_CONFIG_KEY, JSON.stringify(gistConfig));
+      } catch (err) {
+        console.error('Failed to save Gist config:', err);
+      }
+    }
+
+    let state = loadState();
+    let gistConfig = loadGistConfig();
+    let syncUiState = gistConfig.enabled && gistConfig.token ? 'synced' : 'local'; // 'local' | 'syncing' | 'synced' | 'error'
+    let lastSyncError = '';
+    let gistSyncTimer = null;
+
+    let tempSubtasks = [];
+    let suggestedTaskId = null;
+    let focusSession = {
+      active: false,
+      taskId: null,
+      secondsRemaining: 900,
+      running: false,
+      intervalId: null
+    };
+
+    function saveState(options = {}) {
+      if (!options.preserveTimestamp) {
+        state.updatedAt = new Date().toISOString();
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (err) {
+        console.error('Failed to save state:', err);
+        showToast('Local storage save failed (quota exceeded?).', 'error');
+      }
+
+      if (!options.skipSync && gistConfig.enabled && gistConfig.autoSync && gistConfig.token) {
+        scheduleGistSync();
+      }
+    }
+
+    // =========================================================================
+    // GITHUB GIST SYNC ENGINE
+    // =========================================================================
+    function updateSyncStatusUI() {
+      const dot = document.getElementById('syncStatusDot');
+      const label = document.getElementById('syncStatusLabel');
+      const btn = document.getElementById('syncStatusBtn');
+      if (!dot || !label || !btn) return;
+
+      dot.className = 'w-2 h-2 rounded-full';
+
+      if (!gistConfig.enabled || !gistConfig.token) {
+        dot.classList.add('bg-slate-400');
+        label.textContent = 'Local Storage';
+        btn.title = 'Saved locally in browser. Click to optionally connect GitHub Gist sync.';
+      } else if (syncUiState === 'syncing') {
+        dot.classList.add('bg-indigo-500', 'animate-pulse');
+        label.textContent = 'Syncing…';
+        btn.title = 'Syncing with GitHub Gist…';
+      } else if (syncUiState === 'error') {
+        dot.classList.add('bg-rose-500');
+        label.textContent = 'Sync Error';
+        btn.title = lastSyncError || 'GitHub Gist sync error. Click for details.';
+      } else {
+        dot.classList.add('bg-emerald-500');
+        label.textContent = 'Gist Synced';
+        btn.title = gistConfig.lastSyncedAt
+          ? `Last synced ${formatRelativeTime(gistConfig.lastSyncedAt)}`
+          : 'Connected to GitHub Gist';
+      }
+
+      renderGistStatusBanner();
+    }
+
+    function formatRelativeTime(isoStr) {
+      if (!isoStr) return 'never';
+      const diffSec = Math.max(0, Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000));
+      if (diffSec < 10) return 'just now';
+      if (diffSec < 60) return `${diffSec}s ago`;
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ago`;
+      return new Date(isoStr).toLocaleDateString();
+    }
+
+    function scheduleGistSync() {
+      if (gistSyncTimer) clearTimeout(gistSyncTimer);
+      syncUiState = 'syncing';
+      updateSyncStatusUI();
+      gistSyncTimer = setTimeout(() => {
+        pushToGist({ silent: true });
+      }, 1500);
+    }
+
+    function gistHeaders(token) {
+      return {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json'
+      };
+    }
+
+    async function pushToGist({ silent = false } = {}) {
+      if (!gistConfig.token) return false;
+      syncUiState = 'syncing';
+      lastSyncError = '';
+      updateSyncStatusUI();
+
+      const payload = {
+        version: 2,
+        updatedAt: state.updatedAt || new Date().toISOString(),
+        state
+      };
+
+      const body = {
+        description: 'PersonaFlow Planner State (Synced)',
+        files: {
+          [gistConfig.filename || GIST_FILENAME]: {
+            content: JSON.stringify(payload, null, 2)
+          }
+        }
+      };
+
+      try {
+        let res;
+        if (gistConfig.gistId) {
+          res = await fetch(`https://api.github.com/gists/${encodeURIComponent(gistConfig.gistId)}`, {
+            method: 'PATCH',
+            headers: gistHeaders(gistConfig.token),
+            body: JSON.stringify(body)
+          });
+        } else {
+          res = await fetch('https://api.github.com/gists', {
+            method: 'POST',
+            headers: gistHeaders(gistConfig.token),
+            body: JSON.stringify({ ...body, public: false })
+          });
+        }
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `GitHub API error (${res.status})`);
+        }
+
+        const data = await res.json();
+        gistConfig.gistId = data.id;
+        gistConfig.enabled = true;
+        gistConfig.lastSyncedAt = new Date().toISOString();
+        saveGistConfig();
+
+        syncUiState = 'synced';
+        updateSyncStatusUI();
+        populateGistModalFields();
+
+        if (!silent) showToast('☁️ Synced board to GitHub Gist.');
+        return true;
+      } catch (err) {
+        console.error('Gist push failed:', err);
+        syncUiState = 'error';
+        lastSyncError = err.message || 'Failed to push to GitHub Gist';
+        updateSyncStatusUI();
+        if (!silent) showToast(`Gist sync failed: ${lastSyncError}`, 'error');
+        return false;
+      }
+    }
+
+    async function pullFromGist({ silent = false, onlyIfNewer = false } = {}) {
+      if (!gistConfig.token || !gistConfig.gistId) return false;
+      syncUiState = 'syncing';
+      lastSyncError = '';
+      updateSyncStatusUI();
+
+      try {
+        const res = await fetch(`https://api.github.com/gists/${encodeURIComponent(gistConfig.gistId)}`, {
+          method: 'GET',
+          headers: gistHeaders(gistConfig.token)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `GitHub API error (${res.status})`);
+        }
+
+        const data = await res.json();
+        const files = data.files || {};
+        const fileObj = files[gistConfig.filename || GIST_FILENAME]
+          || Object.values(files).find(f => f && f.filename && f.filename.endsWith('.json'))
+          || Object.values(files)[0];
+
+        if (!fileObj) {
+          throw new Error('Gist does not contain a PersonaFlow JSON file.');
+        }
+
+        let rawContent = fileObj.content;
+        if (fileObj.truncated && fileObj.raw_url) {
+          const rawRes = await fetch(fileObj.raw_url);
+          rawContent = await rawRes.text();
+        }
+
+        const parsed = JSON.parse(rawContent);
+        const incomingState = normalizeState(parsed.state || parsed);
+        if (!incomingState) {
+          throw new Error('Gist file does not contain valid PersonaFlow state.');
+        }
+
+        const remoteUpdatedAt = parsed.updatedAt || incomingState.updatedAt || data.updated_at;
+        const localUpdatedAt = state.updatedAt;
+
+        if (onlyIfNewer && localUpdatedAt && remoteUpdatedAt) {
+          if (new Date(remoteUpdatedAt).getTime() <= new Date(localUpdatedAt).getTime()) {
+            gistConfig.lastSyncedAt = new Date().toISOString();
+            saveGistConfig();
+            syncUiState = 'synced';
+            updateSyncStatusUI();
+            return true;
+          }
+        }
+
+        incomingState.updatedAt = remoteUpdatedAt || new Date().toISOString();
+        state = incomingState;
+        saveState({ skipSync: true, preserveTimestamp: true });
+
+        gistConfig.enabled = true;
+        gistConfig.lastSyncedAt = new Date().toISOString();
+        saveGistConfig();
+
+        syncUiState = 'synced';
+        updateSyncStatusUI();
+        renderAll();
+
+        if (!silent) {
+          showToast('☁️ Pulled latest board from GitHub Gist.');
+        } else {
+          showToast('☁️ Updated board from GitHub Gist.');
+        }
+        return true;
+      } catch (err) {
+        console.error('Gist pull failed:', err);
+        syncUiState = 'error';
+        lastSyncError = err.message || 'Failed to pull from GitHub Gist';
+        updateSyncStatusUI();
+        if (!silent) showToast(`Gist pull failed: ${lastSyncError}`, 'error');
+        return false;
+      }
+    }
+
+    function openGistSyncModal() {
+      populateGistModalFields();
+      renderGistStatusBanner();
+      const dialog = document.getElementById('gistSyncModal');
+      if (!dialog.open) dialog.showModal();
+    }
+
+    function populateGistModalFields() {
+      const tokenEl = document.getElementById('gistTokenInput');
+      const idEl = document.getElementById('gistIdInput');
+      const autoEl = document.getElementById('gistAutoSyncCheckbox');
+      const linkActions = document.getElementById('gistLinkActions');
+      const externalLink = document.getElementById('openGistExternalLink');
+      const pushBtn = document.getElementById('gistPushBtn');
+      const pullBtn = document.getElementById('gistPullBtn');
+      const disconnectSec = document.getElementById('gistDisconnectSection');
+      const saveBtn = document.getElementById('gistSaveConnectBtn');
+
+      if (tokenEl) tokenEl.value = gistConfig.token || '';
+      if (idEl) idEl.value = gistConfig.gistId || '';
+      if (autoEl) autoEl.checked = gistConfig.autoSync !== false;
+
+      const isConnected = Boolean(gistConfig.enabled && gistConfig.token);
+      if (gistConfig.gistId) {
+        linkActions?.classList.remove('hidden');
+        if (externalLink) externalLink.href = `https://gist.github.com/${encodeURIComponent(gistConfig.gistId)}`;
+      } else {
+        linkActions?.classList.add('hidden');
+      }
+
+      pushBtn?.classList.toggle('hidden', !isConnected);
+      pullBtn?.classList.toggle('hidden', !(isConnected && gistConfig.gistId));
+      disconnectSec?.classList.toggle('hidden', !isConnected);
+      if (saveBtn) saveBtn.textContent = isConnected ? 'Save Settings' : 'Connect & Sync';
+    }
+
+    function renderGistStatusBanner() {
+      const banner = document.getElementById('gistStatusBanner');
+      if (!banner) return;
+
+      if (!gistConfig.enabled || !gistConfig.token) {
+        banner.className = 'rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs space-y-1 text-slate-600';
+        banner.innerHTML = `
+          <div class="font-bold text-slate-800 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            Local Storage Only
+          </div>
+          <p>All changes save instantly to this browser. Connect a GitHub token below to back up and sync across devices via a private Gist.</p>
+        `;
+      } else if (syncUiState === 'error') {
+        banner.className = 'rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs space-y-1 text-rose-800';
+        banner.innerHTML = `
+          <div class="font-bold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            Gist Sync Error
+          </div>
+          <p>${escapeHtml(lastSyncError || 'Could not reach GitHub API. Your local changes are still safe in Local Storage.')}</p>
+        `;
+      } else {
+        banner.className = 'rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs space-y-1 text-emerald-900';
+        banner.innerHTML = `
+          <div class="font-bold flex items-center justify-between gap-2">
+            <span class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              Connected to GitHub Gist
+            </span>
+            <span class="font-normal text-emerald-700">Last synced: ${escapeHtml(formatRelativeTime(gistConfig.lastSyncedAt))}</span>
+          </div>
+          <p class="text-emerald-800/90">Local Storage is active + synced to Gist <code class="font-mono bg-white/70 px-1 rounded">${escapeHtml(gistConfig.gistId || 'creating…')}</code>.</p>
+        `;
+      }
+    }
+
+    function toggleTokenVisibility() {
+      const input = document.getElementById('gistTokenInput');
+      const btn = document.getElementById('toggleTokenBtn');
+      if (!input || !btn) return;
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      btn.textContent = isPassword ? 'Hide' : 'Show';
+    }
+
+    async function saveAndConnectGist(e) {
+      e.preventDefault();
+      const token = document.getElementById('gistTokenInput').value.trim();
+      const gistId = document.getElementById('gistIdInput').value.trim();
+      const autoSync = document.getElementById('gistAutoSyncCheckbox').checked;
+
+      if (!token) {
+        showToast('Please enter a GitHub Personal Access Token with gist scope.', 'error');
+        return;
+      }
+
+      const isNewLinkToExistingGist = Boolean(gistId && gistId !== gistConfig.gistId);
+
+      gistConfig.token = token;
+      gistConfig.gistId = gistId;
+      gistConfig.autoSync = autoSync;
+      gistConfig.enabled = true;
+      saveGistConfig();
+
+      const btn = document.getElementById('gistSaveConnectBtn');
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Connecting…';
+
+      let ok = false;
+      if (isNewLinkToExistingGist) {
+        // Pull existing Gist when linking a device to an existing Gist ID
+        ok = await pullFromGist({ silent: false, onlyIfNewer: false });
+      } else {
+        // Create new Gist or push current state
+        ok = await pushToGist({ silent: false });
+      }
+
+      btn.disabled = false;
+      btn.textContent = ok ? 'Save Settings' : origText;
+    }
+
+    async function manualPushGist() {
+      await pushToGist({ silent: false });
+    }
+
+    async function manualPullGist() {
+      await pullFromGist({ silent: false, onlyIfNewer: false });
+    }
+
+    function disconnectGist() {
+      if (gistSyncTimer) clearTimeout(gistSyncTimer);
+      gistConfig = cloneObj(DEFAULT_GIST_CONFIG);
+      saveGistConfig();
+      syncUiState = 'local';
+      lastSyncError = '';
+      populateGistModalFields();
+      updateSyncStatusUI();
+      showToast('Disconnected GitHub Gist. Using Local Storage only.');
+    }
+
+    async function copyGistId() {
+      if (!gistConfig.gistId) return;
+      try {
+        await navigator.clipboard.writeText(gistConfig.gistId);
+        showToast('Copied Gist ID to clipboard.');
+      } catch {
+        showToast('Could not copy Gist ID.', 'error');
+      }
+    }
+
+    // =========================================================================
+    // DATA EXPORT, IMPORT & DEMO RESET
+    // =========================================================================
+    function exportData() {
+      try {
+        const jsonStr = JSON.stringify(state, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `personaflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('📦 Board exported as JSON.');
+      } catch (err) {
+        showToast('Could not export board data.', 'error');
+      }
+    }
+
+    function triggerImportData() {
+      const input = document.getElementById('importFileInput');
+      if (input) {
+        input.value = '';
+        input.click();
+      }
+    }
+
+    function handleImportFile(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || ''));
+          const normalized = normalizeState(parsed.state || parsed);
+          if (!normalized) throw new Error('Invalid format');
+          state = normalized;
+          saveState();
+          stopFocusSession();
+          renderAll();
+          showToast(`📥 Imported ${state.tasks.length} cards from JSON.`);
+        } catch (err) {
+          showToast('Invalid PersonaFlow JSON file.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function resetDemoData() {
+      state = cloneObj(DEFAULT_STATE);
+      saveState();
+      stopFocusSession();
+      renderAll();
+      showToast('🔄 Reset to default Planner, Worker, QA & Manager cards.');
+    }
+
+    // =========================================================================
+    // BULK ADD TASKS (SMART PARSER + LIVE PREVIEW)
+    // =========================================================================
+    function openBulkModal(defaultColumn = 'backlog') {
+      const personaSelect = document.getElementById('bulkDefaultPersona');
+      personaSelect.innerHTML = state.personas.map(p =>
+        `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`
+      ).join('');
+
+      personaSelect.value = state.activePersonaFilter !== 'all'
+        ? state.activePersonaFilter
+        : (state.personas[0]?.id || '');
+
+      document.getElementById('bulkDefaultColumn').value = defaultColumn;
+      updateBulkPreview();
+
+      const dialog = document.getElementById('bulkTaskModal');
+      if (!dialog.open) dialog.showModal();
+    }
+
+    function closeBulkModal() {
+      const dialog = document.getElementById('bulkTaskModal');
+      if (dialog.open) dialog.close();
+    }
+
+    function insertBulkExample() {
+      const input = document.getElementById('bulkTasksInput');
+      input.value = [
+        'Outline Q4 milestone priorities @planner 25m #ready > Open blank doc and list 3 themes',
+        '  - Identify smallest shippable slice',
+        '  - Flag external blockers',
+        'Implement keyboard shortcuts @worker 15m !low > Add keydown listener',
+        'Test mobile board scrolling & touch targets @qa !low #ready',
+        'Unblock design review feedback @manager 15m !med #backlog'
+      ].join('\n');
+      updateBulkPreview();
+      input.focus();
+    }
+
+    function clearBulkInput() {
+      const input = document.getElementById('bulkTasksInput');
+      input.value = '';
+      updateBulkPreview();
+      input.focus();
+    }
+
+    function matchPersonaToken(token) {
+      const needle = token.toLowerCase();
+      // Exact name match first, then startsWith, then includes
+      return (
+        state.personas.find(p => p.name.toLowerCase() === needle) ||
+        state.personas.find(p => p.name.toLowerCase().startsWith(needle)) ||
+        state.personas.find(p => p.name.toLowerCase().includes(needle)) ||
+        null
+      );
+    }
+
+    function parseBulkTasks(rawText, defaults) {
+      const lines = String(rawText || '').split(/\r?\n/);
+      const parsedTasks = [];
+
+      const colAliasMap = {
+        backlog: 'backlog', brain: 'backlog', dump: 'backlog',
+        ready: 'ready', today: 'ready', queue: 'ready',
+        doing: 'doing', now: 'doing', active: 'doing',
+        done: 'done', complete: 'done'
+      };
+
+      const frictionAliasMap = {
+        low: 'low', '1': 'low', easy: 'low',
+        med: 'medium', medium: 'medium', '2': 'medium',
+        high: 'high', '3': 'high', deep: 'high'
+      };
+
+      for (const rawLine of lines) {
+        if (!rawLine.trim()) continue;
+
+        const isIndented = /^(\t|  +)/.test(rawLine);
+        if (isIndented && parsedTasks.length > 0) {
+          let subText = rawLine.trim();
+          let subDone = false;
+          const checkMatch = subText.match(/^(?:[-*•]\s*)?\[([ xX])\]\s*/);
+          if (checkMatch) {
+            subDone = checkMatch[1].toLowerCase() === 'x';
+            subText = subText.slice(checkMatch[0].length);
+          } else {
+            subText = subText.replace(/^(?:[-*•]|\d+[.)])\s+/, '');
+          }
+          subText = subText.trim();
+          if (subText) {
+            parsedTasks[parsedTasks.length - 1].subtasks.push({ text: subText, done: subDone });
+          }
+          continue;
+        }
+
+        let line = rawLine.trim();
+        let checkedDone = false;
+        const taskCheckMatch = line.match(/^(?:[-*•]\s*)?\[([ xX])\]\s*/);
+        if (taskCheckMatch) {
+          checkedDone = taskCheckMatch[1].toLowerCase() === 'x';
+          line = line.slice(taskCheckMatch[0].length);
+        } else {
+          line = line.replace(/^(?:[-*•]|\d+[.)])\s+/, '');
+        }
+
+        // Extract optional "> tiny first step" at the end
+        let firstStep = '';
+        const gtIdx = line.indexOf(' > ');
+        if (gtIdx !== -1) {
+          firstStep = line.slice(gtIdx + 3).trim();
+          line = line.slice(0, gtIdx).trim();
+        }
+
+        let personaId = defaults.personaId;
+        let column = checkedDone ? 'done' : defaults.column;
+        let friction = defaults.friction;
+        let duration = defaults.duration;
+
+        // Parse @persona
+        line = line.replace(/(^|\s)@([a-zA-Z0-9_-]+)/g, (match, lead, token) => {
+          const found = matchPersonaToken(token);
+          if (found) {
+            personaId = found.id;
+            return lead;
+          }
+          return match;
+        });
+
+        // Parse !friction
+        line = line.replace(/(^|\s)!(low|med|medium|high|easy|deep|1|2|3)\b/gi, (match, lead, token) => {
+          const mapped = frictionAliasMap[token.toLowerCase()];
+          if (mapped) {
+            friction = mapped;
+            return lead;
+          }
+          return match;
+        });
+
+        // Parse #column
+        line = line.replace(/(^|\s)#(backlog|brain|dump|ready|today|queue|doing|now|active|done|complete)\b/gi, (match, lead, token) => {
+          const mapped = colAliasMap[token.toLowerCase()];
+          if (mapped) {
+            column = mapped;
+            return lead;
+          }
+          return match;
+        });
+
+        // Parse sprint duration (5m, 15m, 25m, 45m)
+        line = line.replace(/(^|\s)(5|15|25|45)m(?:in|ins)?\b/gi, (match, lead, mins) => {
+          duration = Number(mins);
+          return lead;
+        });
+
+        const title = line.replace(/\s{2,}/g, ' ').trim();
+        if (!title) continue;
+
+        parsedTasks.push({
+          title,
+          personaId,
+          column,
+          friction,
+          duration,
+          firstStep,
+          subtasks: [],
+          notes: ''
+        });
+      }
+
+      return parsedTasks;
+    }
+
+    function getBulkDefaults() {
+      return {
+        personaId: document.getElementById('bulkDefaultPersona')?.value || state.personas[0]?.id || '',
+        column: document.getElementById('bulkDefaultColumn')?.value || 'backlog',
+        friction: document.getElementById('bulkDefaultFriction')?.value || 'low',
+        duration: Number(document.getElementById('bulkDefaultDuration')?.value) || 15
+      };
+    }
+
+    function updateBulkPreview() {
+      const rawText = document.getElementById('bulkTasksInput')?.value || '';
+      const tasks = parseBulkTasks(rawText, getBulkDefaults());
+      const previewList = document.getElementById('bulkPreviewList');
+      const countEl = document.getElementById('bulkPreviewCount');
+      const submitBtn = document.getElementById('bulkSubmitBtn');
+
+      const totalSubs = tasks.reduce((sum, t) => sum + t.subtasks.length, 0);
+      if (countEl) {
+        countEl.textContent = totalSubs > 0
+          ? `${tasks.length} card${tasks.length === 1 ? '' : 's'} · ${totalSubs} sub-step${totalSubs === 1 ? '' : 's'}`
+          : `${tasks.length} card${tasks.length === 1 ? '' : 's'} ready`;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = tasks.length === 0;
+        submitBtn.textContent = tasks.length === 1 ? 'Add 1 Card' : `Add ${tasks.length} Cards`;
+      }
+
+      if (!previewList) return;
+
+      if (tasks.length === 0) {
+        previewList.innerHTML = `
+          <div class="h-full min-h-[180px] flex flex-col items-center justify-center text-center text-xs text-slate-400 px-4 gap-1.5">
+            <span class="text-2xl">✨</span>
+            <p class="font-medium text-slate-500">Your parsed cards will appear here</p>
+            <p>Type one task per line, or paste a checklist from Notes, Slack, or Markdown.</p>
+          </div>
+        `;
+        return;
+      }
+
+      previewList.innerHTML = tasks.map(t => {
+        const persona = state.personas.find(p => p.id === t.personaId) || { emoji: '📌', name: 'General', color: 'indigo' };
+        const cStyle = COLOR_STYLES[persona.color] || COLOR_STYLES.indigo;
+        const fMeta = FRICTION_META[t.friction] || FRICTION_META.low;
+        const col = COLUMNS.find(c => c.id === t.column) || COLUMNS[0];
+
+        return `
+          <div class="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs space-y-1.5">
+            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${cStyle.badge}">
+                  ${escapeHtml(persona.emoji)} ${escapeHtml(persona.name)}
+                </span>
+                <span class="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                  ${col.icon} ${col.title}
+                </span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${fMeta.style}">${fMeta.icon} ${fMeta.label}</span>
+                <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">${t.duration}m</span>
+              </div>
+            </div>
+            <p class="text-xs font-semibold text-slate-900">${escapeHtml(t.title)}</p>
+            ${t.firstStep ? `
+              <p class="text-[11px] text-amber-900 bg-amber-50 border border-amber-200/70 rounded-lg px-2 py-1">
+                🪜 ${escapeHtml(t.firstStep)}
+              </p>
+            ` : ''}
+            ${t.subtasks.length > 0 ? `
+              <ul class="pl-2 space-y-0.5 border-l-2 border-slate-200 text-[11px] text-slate-600">
+                ${t.subtasks.map(s => `<li class="${s.done ? 'line-through text-slate-400' : ''}">• ${escapeHtml(s.text)}</li>`).join('')}
+              </ul>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function submitBulkTasks(e) {
+      e.preventDefault();
+      const input = document.getElementById('bulkTasksInput');
+      const parsed = parseBulkTasks(input.value, getBulkDefaults());
+      if (parsed.length === 0) return;
+
+      const now = Date.now();
+      const newTasks = parsed.map((t, idx) => ({
+        id: `t-${now}-${idx}-${Math.random().toString(36).slice(2, 5)}`,
+        title: t.title,
+        personaId: t.personaId,
+        column: t.column,
+        friction: t.friction,
+        duration: t.duration,
+        firstStep: t.firstStep,
+        notes: t.notes,
+        subtasks: t.subtasks.map((s, sIdx) => ({
+          id: `s-${now}-${idx}-${sIdx}`,
+          text: s.text,
+          done: s.done
+        }))
+      }));
+
+      // Prepend in order so the first line appears at the top
+      state.tasks.unshift(...newTasks);
+      input.value = '';
+      saveState();
+      closeBulkModal();
+      renderAll();
+      showToast(`✨ Added ${newTasks.length} card${newTasks.length === 1 ? '' : 's'} to your board!`);
+    }
+
+    // =========================================================================
+    // RENDERING: PERSONA BAR & KANBAN BOARD
+    // =========================================================================
+    function setPersonaFilter(personaId) {
+      state.activePersonaFilter = personaId;
+      saveState();
+      renderAll();
+    }
+
+    function renderPersonaBar() {
+      const bar = document.getElementById('personaFilterBar');
+      if (!bar) return;
+
+      const allActive = state.activePersonaFilter === 'all';
+      const totalOpen = state.tasks.filter(t => t.column !== 'done').length;
+
+      let html = `
+        <button
+          type="button"
+          onclick="setPersonaFilter('all')"
+          class="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold border transition shrink-0 flex items-center gap-1.5 ${
+            allActive
+              ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+          }"
+        >
+          <span>🌐 All Hats</span>
+          <span class="px-1.5 py-0.2 rounded-md text-[11px] ${allActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}">${totalOpen}</span>
+        </button>
+      `;
+
+      state.personas.forEach(p => {
+        const isActive = state.activePersonaFilter === p.id;
+        const cStyle = COLOR_STYLES[p.color] || COLOR_STYLES.indigo;
+        const openCount = state.tasks.filter(t => t.personaId === p.id && t.column !== 'done').length;
+
+        html += `
+          <button
+            type="button"
+            onclick="setPersonaFilter('${p.id}')"
+            title="${escapeHtml(p.mantra || p.name)}"
+            class="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold border transition shrink-0 flex items-center gap-1.5 ${
+              isActive
+                ? `${cStyle.pillActive} shadow-2xs`
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+            }"
+          >
+            <span>${escapeHtml(p.emoji)}</span>
+            <span>${escapeHtml(p.name)}</span>
+            <span class="px-1.5 py-0.2 rounded-md text-[11px] ${isActive ? 'bg-black/15 text-current' : 'bg-slate-100 text-slate-600'}">${openCount}</span>
+          </button>
+        `;
+      });
+
+      bar.innerHTML = html;
+    }
+
+    function getVisibleTasks() {
+      const searchQuery = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+      const frictionFilter = document.getElementById('frictionFilter')?.value || 'all';
+
+      return state.tasks.filter(task => {
+        if (state.activePersonaFilter !== 'all' && task.personaId !== state.activePersonaFilter) return false;
+        if (frictionFilter !== 'all' && task.friction !== frictionFilter) return false;
+        if (searchQuery) {
+          const hay = `${task.title} ${task.firstStep || ''} ${task.notes || ''}`.toLowerCase();
+          if (!hay.includes(searchQuery)) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderBoard() {
+      const board = document.getElementById('boardColumns');
+      if (!board) return;
+
+      const filteredTasks = getVisibleTasks();
+
+      // Update summary counter & collapse button state
+      const doneTotal = filteredTasks.filter(t => t.column === 'done').length;
+      const statsEl = document.getElementById('statsSummary');
+      if (statsEl) {
+        statsEl.textContent = `${doneTotal} of ${filteredTasks.length} cards done`;
+      }
+      updateGlobalCollapseButton(filteredTasks);
+
+      // Active persona mantra banner if filtered to a single persona
+      const activePersona = state.activePersonaFilter !== 'all'
+        ? state.personas.find(p => p.id === state.activePersonaFilter)
+        : null;
+
+      board.innerHTML = COLUMNS.map((col, colIdx) => {
+        const colTasks = filteredTasks.filter(t => t.column === col.id);
+        const wipWarning = col.id === 'doing' && colTasks.length > 2;
+
+        return `
+          <section
+            ondragover="handleDragOver(event)"
+            ondragleave="handleDragLeave(event)"
+            ondrop="handleDrop(event, '${col.id}')"
+            class="bg-slate-100/80 rounded-2xl border border-slate-200/80 p-3.5 flex flex-col gap-3 min-h-[260px] transition-colors"
+          >
+            <!-- Column Header -->
+            <div class="flex items-center justify-between gap-2 px-1">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-base">${col.icon}</span>
+                  <h2 class="text-sm font-bold text-slate-900">${col.title}</h2>
+                  <span class="px-2 py-0.5 rounded-full text-xs font-bold ${
+                    wipWarning ? 'bg-amber-200 text-amber-950' : 'bg-slate-200/80 text-slate-700'
+                  }">
+                    ${colTasks.length}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  ${wipWarning ? '⚠️ Too many active tasks—finish one first!' : (activePersona && col.id === 'doing' && activePersona.mantra ? escapeHtml(activePersona.mantra) : col.subtitle)}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  onclick="openBulkModal('${col.id}')"
+                  title="Bulk add cards to ${col.title}"
+                  class="w-7 h-7 rounded-lg bg-white border border-slate-200 hover:border-indigo-400 hover:text-indigo-600 text-slate-500 text-xs flex items-center justify-center transition shadow-2xs"
+                >
+                  📝
+                </button>
+                <button
+                  type="button"
+                  onclick="openTaskModal(null, '${col.id}')"
+                  title="Add card to ${col.title}"
+                  class="w-7 h-7 rounded-lg bg-white border border-slate-200 hover:border-indigo-400 hover:text-indigo-600 text-slate-500 font-bold text-sm flex items-center justify-center transition shadow-2xs"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <!-- Cards Container -->
+            <div class="flex flex-col gap-2.5 flex-1">
+              ${colTasks.length > 0
+                ? colTasks.map(task => renderCardHtml(task, colIdx)).join('')
+                : `
+                  <div class="border-2 border-dashed border-slate-200/90 rounded-xl p-6 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-1.5 my-auto">
+                    <span>Drop card here</span>
+                    <div class="flex items-center gap-2">
+                      <button type="button" onclick="openTaskModal(null, '${col.id}')" class="text-indigo-600 font-semibold hover:underline">+ Add a card</button>
+                      <span>•</span>
+                      <button type="button" onclick="openBulkModal('${col.id}')" class="text-slate-500 font-semibold hover:text-indigo-600 hover:underline">Bulk add</button>
+                    </div>
+                  </div>
+                `
+              }
+            </div>
+          </section>
+        `;
+      }).join('');
+    }
+
+    function renderCardHtml(task, colIdx) {
+      const persona = state.personas.find(p => p.id === task.personaId) || { name: 'General', emoji: '📌', color: 'indigo' };
+      const cStyle = COLOR_STYLES[persona.color] || COLOR_STYLES.indigo;
+      const fMeta = FRICTION_META[task.friction] || FRICTION_META.low;
+      const isCollapsed = Boolean(state.collapsedCards && state.collapsedCards[task.id]);
+
+      const subtasks = task.subtasks || [];
+      const doneSubs = subtasks.filter(s => s.done).length;
+      const progressPct = subtasks.length > 0 ? Math.round((doneSubs / subtasks.length) * 100) : 0;
+
+      const prevCol = colIdx > 0 ? COLUMNS[colIdx - 1] : null;
+      const nextCol = colIdx < COLUMNS.length - 1 ? COLUMNS[colIdx + 1] : null;
+
+      return `
+        <article
+          draggable="true"
+          ondragstart="handleDragStart(event, '${task.id}')"
+          ondragend="handleDragEnd(event)"
+          onclick="toggleCardCollapse('${task.id}')"
+          title="${isCollapsed ? 'Tap card to expand details' : 'Tap card to collapse'}"
+          class="bg-white rounded-xl border border-slate-200/90 ${isCollapsed ? 'p-3' : 'p-3.5'} shadow-2xs hover:shadow-md hover:border-slate-300 transition cursor-pointer group"
+        >
+          <!-- Top Meta: Persona Badge + Friction + Sprint Time + Collapse Indicator -->
+          <div class="flex items-center justify-between gap-1.5 ${isCollapsed ? 'mb-1.5' : 'mb-2'} flex-wrap">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${cStyle.badge}">
+              <span>${escapeHtml(persona.emoji)}</span>
+              <span>${escapeHtml(persona.name)}</span>
+            </span>
+
+            <div class="flex items-center gap-1">
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium border ${fMeta.style}">
+                ${fMeta.icon} ${fMeta.label}
+              </span>
+              <span class="text-[11px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                ${task.duration || 15}m
+              </span>
+              <button
+                type="button"
+                onclick="event.stopPropagation(); toggleCardCollapse('${task.id}')"
+                aria-label="${isCollapsed ? 'Expand card' : 'Collapse card'}"
+                class="w-5 h-5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center text-xs transition"
+              >
+                ${isCollapsed ? '▾' : '▴'}
+              </button>
+            </div>
+          </div>
+
+          <!-- Title -->
+          <h3 class="text-sm font-semibold text-slate-900 leading-snug ${task.column === 'done' ? 'line-through text-slate-400' : ''}">
+            ${escapeHtml(task.title)}
+          </h3>
+
+          ${!isCollapsed ? `
+            <!-- Tiny First Step Callout (Anti-procrastination hook) -->
+            ${task.firstStep && task.column !== 'done' ? `
+              <div class="mt-2.5 px-2.5 py-1.5 rounded-lg bg-amber-50/80 border border-amber-200/60 text-[11px] text-amber-950 flex items-start gap-1.5">
+                <span class="shrink-0">🪜</span>
+                <span class="leading-tight"><strong>First step:</strong> ${escapeHtml(task.firstStep)}</span>
+              </div>
+            ` : ''}
+
+            <!-- Interactive Subtasks Checklist -->
+            ${subtasks.length > 0 ? `
+              <div onclick="event.stopPropagation()" class="mt-2.5 pt-2 border-t border-slate-100 space-y-1 cursor-default">
+                <div class="flex items-center justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                  <span>Micro-steps</span>
+                  <span>${doneSubs}/${subtasks.length}</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1.5">
+                  <div class="h-full bg-emerald-500 transition-all duration-300" style="width: ${progressPct}%"></div>
+                </div>
+                ${subtasks.map(sub => `
+                  <label class="flex items-start gap-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer py-0.5">
+                    <input type="checkbox" ${sub.done ? 'checked' : ''} onchange="toggleSubtask('${task.id}', '${sub.id}')" class="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <span class="${sub.done ? 'line-through text-slate-400' : ''}">${escapeHtml(sub.text)}</span>
+                  </label>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <!-- Card Footer Actions (Focus Timer + Quick Move + Edit) -->
+            <div onclick="event.stopPropagation()" class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 cursor-default">
+              <div class="flex items-center gap-1">
+                ${task.column !== 'done' ? `
+                  <button type="button" onclick="startFocusForTask('${task.id}')" title="Start ${task.duration || 15}-min focus timer" class="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold transition flex items-center gap-1">
+                    <span>▶</span> Focus
+                  </button>
+                ` : ''}
+                <button type="button" onclick="openTaskModal('${task.id}')" class="px-2 py-1 rounded-lg text-slate-500 hover:bg-slate-100 text-[11px] font-medium transition">
+                  Edit
+                </button>
+              </div>
+
+              <!-- Accessible Touch / Click Move Arrows -->
+              <div class="flex items-center gap-1">
+                ${prevCol ? `
+                  <button type="button" onclick="moveTaskToColumn('${task.id}', '${prevCol.id}')" title="Move to ${prevCol.title}" class="w-7 h-7 rounded-lg bg-slate-50 hover:bg-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center transition">
+                    ←
+                  </button>
+                ` : ''}
+                ${nextCol ? `
+                  <button type="button" onclick="moveTaskToColumn('${task.id}', '${nextCol.id}')" title="Move to ${nextCol.title}" class="w-7 h-7 rounded-lg bg-slate-50 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 text-xs font-bold flex items-center justify-center transition">
+                    →
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+        </article>
+      `;
+    }
+
+    function toggleCardCollapse(taskId) {
+      if (!state.collapsedCards) state.collapsedCards = {};
+      state.collapsedCards[taskId] = !state.collapsedCards[taskId];
+      saveState();
+      renderBoard();
+    }
+
+    function toggleAllCards() {
+      if (!state.collapsedCards) state.collapsedCards = {};
+      const visibleTasks = getVisibleTasks();
+      const targetTasks = visibleTasks.length > 0 ? visibleTasks : state.tasks;
+      const areAllCollapsed = targetTasks.length > 0 && targetTasks.every(t => state.collapsedCards[t.id]);
+
+      targetTasks.forEach(t => {
+        state.collapsedCards[t.id] = !areAllCollapsed;
+      });
+
+      saveState();
+      renderBoard();
+    }
+
+    function updateGlobalCollapseButton(visibleTasks) {
+      const btnIcon = document.getElementById('toggleAllCollapseIcon');
+      const btnLabel = document.getElementById('toggleAllCollapseLabel');
+      if (!btnIcon || !btnLabel) return;
+
+      const targetTasks = visibleTasks.length > 0 ? visibleTasks : state.tasks;
+      const allCollapsed = targetTasks.length > 0 && targetTasks.every(t => state.collapsedCards?.[t.id]);
+
+      btnIcon.textContent = allCollapsed ? '⊞' : '⊟';
+      btnLabel.textContent = allCollapsed ? 'Expand All' : 'Collapse All';
+    }
+
+    function renderAll() {
+      renderPersonaBar();
+      renderBoard();
+      updateSyncStatusUI();
+    }
+
+    // =========================================================================
+    // DRAG AND DROP HANDLERS
+    // =========================================================================
+    let draggedTaskId = null;
+
+    function handleDragStart(e, taskId) {
+      draggedTaskId = taskId;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', taskId);
+      setTimeout(() => e.target.classList.add('dragging'), 0);
+    }
+
+    function handleDragEnd(e) {
+      e.target.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleDrop(e, targetColumnId) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+      if (taskId) {
+        moveTaskToColumn(taskId, targetColumnId);
+      }
+    }
+
+    function moveTaskToColumn(taskId, targetColumnId) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task || task.column === targetColumnId) return;
+
+      task.column = targetColumnId;
+      saveState();
+      renderAll();
+
+      if (targetColumnId === 'done') {
+        playGentleChime();
+        showToast(`🎉 Completed "${task.title}"!`);
+      }
+    }
+
+    function toggleSubtask(taskId, subtaskId) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const sub = (task.subtasks || []).find(s => s.id === subtaskId);
+      if (sub) {
+        sub.done = !sub.done;
+        saveState();
+        renderBoard();
+      }
+    }
+
+    // =========================================================================
+    // TASK MODAL (CREATE / EDIT)
+    // =========================================================================
+    function openTaskModal(taskId = null, defaultColumn = 'ready') {
+      const modal = document.getElementById('taskModal');
+      const personaSelect = document.getElementById('taskPersonaSelect');
+
+      personaSelect.innerHTML = state.personas.map(p =>
+        `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`
+      ).join('');
+
+      if (taskId) {
+        const task = state.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        document.getElementById('taskModalTitle').textContent = 'Edit Persona Card';
+        document.getElementById('taskId').value = task.id;
+        document.getElementById('taskTitleInput').value = task.title;
+        personaSelect.value = task.personaId;
+        document.getElementById('taskColumnSelect').value = task.column;
+        document.getElementById('taskFrictionSelect').value = task.friction || 'low';
+        document.getElementById('taskDurationSelect').value = String(task.duration || 15);
+        document.getElementById('taskFirstStepInput').value = task.firstStep || '';
+        document.getElementById('taskNotesInput').value = task.notes || '';
+        tempSubtasks = cloneObj(task.subtasks || []);
+        document.getElementById('deleteTaskBtn').classList.remove('hidden');
+      } else {
+        document.getElementById('taskModalTitle').textContent = 'New Persona Card';
+        document.getElementById('taskId').value = '';
+        document.getElementById('taskTitleInput').value = '';
+        personaSelect.value = state.activePersonaFilter !== 'all'
+          ? state.activePersonaFilter
+          : (state.personas[0]?.id || '');
+        document.getElementById('taskColumnSelect').value = defaultColumn;
+        document.getElementById('taskFrictionSelect').value = 'low';
+        document.getElementById('taskDurationSelect').value = '15';
+        document.getElementById('taskFirstStepInput').value = '';
+        document.getElementById('taskNotesInput').value = '';
+        tempSubtasks = [];
+        document.getElementById('deleteTaskBtn').classList.add('hidden');
+      }
+
+      renderModalSubtasks();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => document.getElementById('taskTitleInput').focus(), 50);
+    }
+
+    function closeTaskModal() {
+      const modal = document.getElementById('taskModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function renderModalSubtasks() {
+      const list = document.getElementById('subtasksList');
+      list.innerHTML = tempSubtasks.map((s, idx) => `
+        <div class="flex items-center justify-between gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-sm">
+          <span class="truncate ${s.done ? 'line-through text-slate-400' : 'text-slate-700'}">${escapeHtml(s.text)}</span>
+          <button type="button" onclick="removeTempSubtask(${idx})" class="text-slate-400 hover:text-rose-600 font-bold px-1">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function addSubtaskRow() {
+      const input = document.getElementById('newSubtaskInput');
+      const val = input.value.trim();
+      if (!val) return;
+      tempSubtasks.push({ id: 's-' + Date.now() + Math.random().toString(36).slice(2, 6), text: val, done: false });
+      input.value = '';
+      renderModalSubtasks();
+    }
+
+    function removeTempSubtask(idx) {
+      tempSubtasks.splice(idx, 1);
+      renderModalSubtasks();
+    }
+
+    function saveTask(e) {
+      e.preventDefault();
+      const id = document.getElementById('taskId').value;
+      const title = document.getElementById('taskTitleInput').value.trim();
+      if (!title) return;
+
+      const payload = {
+        title,
+        personaId: document.getElementById('taskPersonaSelect').value,
+        column: document.getElementById('taskColumnSelect').value,
+        friction: document.getElementById('taskFrictionSelect').value,
+        duration: Number(document.getElementById('taskDurationSelect').value) || 15,
+        firstStep: document.getElementById('taskFirstStepInput').value.trim(),
+        notes: document.getElementById('taskNotesInput').value.trim(),
+        subtasks: tempSubtasks
+      };
+
+      if (id) {
+        const idx = state.tasks.findIndex(t => t.id === id);
+        if (idx !== -1) state.tasks[idx] = { ...state.tasks[idx], ...payload };
+        showToast('Card updated.');
+      } else {
+        state.tasks.unshift({ id: 't-' + Date.now(), ...payload });
+        showToast('Card added to board.');
+      }
+
+      saveState();
+      closeTaskModal();
+      renderAll();
+    }
+
+    function deleteCurrentTask() {
+      const id = document.getElementById('taskId').value;
+      if (!id) return;
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      if (state.collapsedCards) delete state.collapsedCards[id];
+      saveState();
+      closeTaskModal();
+      renderAll();
+      showToast('Card deleted.');
+    }
+
+    // =========================================================================
+    // PERSONA MANAGEMENT MODAL
+    // =========================================================================
+    function openPersonaModal() {
+      renderPersonaManageList();
+      const modal = document.getElementById('personaModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closePersonaModal() {
+      const modal = document.getElementById('personaModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function renderPersonaManageList() {
+      const list = document.getElementById('personaManageList');
+      list.innerHTML = state.personas.map(p => {
+        const cStyle = COLOR_STYLES[p.color] || COLOR_STYLES.indigo;
+        const count = state.tasks.filter(t => t.personaId === p.id).length;
+        return `
+          <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/70">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-md text-xs font-bold border ${cStyle.badge}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</span>
+                <span class="text-xs text-slate-400">${count} cards</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1 truncate">${escapeHtml(p.mantra || 'No mindset cue set')}</p>
+            </div>
+            ${state.personas.length > 1 ? `
+              <button type="button" onclick="deletePersona('${p.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 transition shrink-0">
+                Remove
+              </button>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addPersona(e) {
+      e.preventDefault();
+      const emoji = document.getElementById('newPersonaEmoji').value.trim() || '🎭';
+      const name = document.getElementById('newPersonaName').value.trim();
+      const mantra = document.getElementById('newPersonaMantra').value.trim();
+      const color = document.getElementById('newPersonaColor').value;
+      if (!name) return;
+
+      state.personas.push({
+        id: 'p-' + Date.now(),
+        name,
+        emoji,
+        color,
+        mantra
+      });
+
+      document.getElementById('newPersonaName').value = '';
+      document.getElementById('newPersonaMantra').value = '';
+      saveState();
+      renderPersonaManageList();
+      renderAll();
+      showToast(`Created persona "${name}"!`);
+    }
+
+    function deletePersona(personaId) {
+      if (state.personas.length <= 1) return;
+      const fallbackId = state.personas.find(p => p.id !== personaId).id;
+      state.tasks.forEach(t => {
+        if (t.personaId === personaId) t.personaId = fallbackId;
+      });
+      state.personas = state.personas.filter(p => p.id !== personaId);
+      if (state.activePersonaFilter === personaId) state.activePersonaFilter = 'all';
+      saveState();
+      renderPersonaManageList();
+      renderAll();
+      showToast('Persona removed and cards reassigned.');
+    }
+
+    // =========================================================================
+    // ANTI-PROCRASTINATION LAUNCHER & FOCUS TIMER
+    // =========================================================================
+    function openFocusLauncher() {
+      const select = document.getElementById('launcherPersonaSelect');
+      select.innerHTML = `<option value="all">🌐 Any Persona (Lowest Friction)</option>` +
+        state.personas.map(p => `<option value="${p.id}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`).join('');
+
+      if (state.activePersonaFilter !== 'all') {
+        select.value = state.activePersonaFilter;
+      }
+
+      pickSuggestedTask();
+      const modal = document.getElementById('focusLauncherModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeFocusLauncher() {
+      const modal = document.getElementById('focusLauncherModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function pickSuggestedTask(shuffle = false) {
+      const personaId = document.getElementById('launcherPersonaSelect').value;
+      const box = document.getElementById('suggestedTaskBox');
+      const startBtn = document.getElementById('startSuggestedFocusBtn');
+
+      let candidates = state.tasks.filter(t => t.column !== 'done');
+      if (personaId !== 'all') {
+        candidates = candidates.filter(t => t.personaId === personaId);
+      }
+
+      if (candidates.length === 0) {
+        suggestedTaskId = null;
+        box.innerHTML = `<p class="text-sm text-slate-600 text-center py-2">No pending tasks for this persona! Add a small win to get rolling.</p>`;
+        startBtn.disabled = true;
+        startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        return;
+      }
+
+      const frictionWeight = { low: 1, medium: 2, high: 3 };
+      const colWeight = { doing: 1, ready: 2, backlog: 3 };
+
+      candidates.sort((a, b) => {
+        const scoreA = (frictionWeight[a.friction] || 2) * 10 + (colWeight[a.column] || 2);
+        const scoreB = (frictionWeight[b.friction] || 2) * 10 + (colWeight[b.column] || 2);
+        return scoreA - scoreB;
+      });
+
+      let chosen = candidates[0];
+      if (shuffle && candidates.length > 1) {
+        const pool = candidates.filter(c => c.id !== suggestedTaskId);
+        chosen = pool[Math.floor(Math.random() * pool.length)];
+      }
+
+      suggestedTaskId = chosen.id;
+      const persona = state.personas.find(p => p.id === chosen.personaId) || { emoji: '🎯', name: 'Focus' };
+
+      box.innerHTML = `
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-indigo-800">${escapeHtml(persona.emoji)} ${escapeHtml(persona.name)}</span>
+          <span class="px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-700 font-semibold">${chosen.duration || 15} min sprint</span>
+        </div>
+        <p class="font-bold text-slate-900 text-base">${escapeHtml(chosen.title)}</p>
+        <div class="text-xs text-amber-900 bg-amber-100/80 px-3 py-2 rounded-lg">
+          <strong>🪜 Micro-start:</strong> ${escapeHtml(chosen.firstStep || 'Just spend 2 minutes setting up the workspace for this task.')}
+        </div>
+      `;
+
+      startBtn.disabled = false;
+      startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+
+    function startSuggestedFocus() {
+      if (!suggestedTaskId) return;
+      closeFocusLauncher();
+      startFocusForTask(suggestedTaskId);
+    }
+
+    function startFocusForTask(taskId) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      if (task.column === 'backlog' || task.column === 'ready') {
+        task.column = 'doing';
+        saveState();
+        renderAll();
+      }
+
+      if (focusSession.intervalId) clearInterval(focusSession.intervalId);
+
+      const persona = state.personas.find(p => p.id === task.personaId) || { emoji: '🎭', name: 'Persona' };
+      focusSession = {
+        active: true,
+        taskId: task.id,
+        secondsRemaining: (task.duration || 15) * 60,
+        running: true,
+        intervalId: setInterval(tickTimer, 1000)
+      };
+
+      document.getElementById('focusPersonaBadge').textContent = `${persona.emoji} ${persona.name}`;
+      document.getElementById('focusTaskTitle').textContent = task.title;
+      document.getElementById('timerToggleBtn').textContent = 'Pause';
+      updateTimerDisplay();
+
+      document.getElementById('focusBanner').classList.remove('hidden');
+      showToast(`Timer started! Focus only on "${task.title}".`);
+    }
+
+    function tickTimer() {
+      if (!focusSession.running) return;
+      focusSession.secondsRemaining--;
+      updateTimerDisplay();
+
+      if (focusSession.secondsRemaining <= 0) {
+        clearInterval(focusSession.intervalId);
+        focusSession.running = false;
+        document.getElementById('timerToggleBtn').textContent = 'Restart';
+        playGentleChime();
+        showToast('⏰ Sprint complete! Mark it done or take a breather.');
+      }
+    }
+
+    function toggleTimer() {
+      if (focusSession.secondsRemaining <= 0) {
+        const task = state.tasks.find(t => t.id === focusSession.taskId);
+        focusSession.secondsRemaining = ((task?.duration) || 15) * 60;
+        focusSession.running = true;
+        focusSession.intervalId = setInterval(tickTimer, 1000);
+        document.getElementById('timerToggleBtn').textContent = 'Pause';
+        updateTimerDisplay();
+        return;
+      }
+
+      focusSession.running = !focusSession.running;
+      document.getElementById('timerToggleBtn').textContent = focusSession.running ? 'Pause' : 'Resume';
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(Math.max(0, focusSession.secondsRemaining) / 60);
+      const secs = Math.max(0, focusSession.secondsRemaining) % 60;
+      document.getElementById('timerDisplay').textContent =
+        `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function completeFocusTask() {
+      if (focusSession.taskId) {
+        moveTaskToColumn(focusSession.taskId, 'done');
+      }
+      stopFocusSession();
+    }
+
+    function stopFocusSession() {
+      if (focusSession.intervalId) clearInterval(focusSession.intervalId);
+      focusSession.active = false;
+      focusSession.running = false;
+      document.getElementById('focusBanner').classList.add('hidden');
+    }
+
+    // =========================================================================
+    // UTILITIES: SOUND, TOASTS & ESCAPING
+    // =========================================================================
+    function playGentleChime() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        [523.25, 659.25, 783.99].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+          gain.gain.setValueAtTime(0.08, now + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.12 + 0.6);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.12);
+          osc.stop(now + idx * 0.12 + 0.65);
+        });
+      } catch (e) {
+        // Ignore audio context autoplay blocks
+      }
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const el = document.createElement('div');
+      el.className = `px-4 py-2.5 rounded-xl shadow-lg text-xs sm:text-sm font-medium transition-all transform translate-y-2 opacity-0 pointer-events-auto ${
+        type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'
+      }`;
+      el.textContent = message;
+      container.appendChild(el);
+
+      requestAnimationFrame(() => {
+        el.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => el.remove(), 250);
+      }, 3200);
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // =========================================================================
+    // PROGRESSIVE ENHANCEMENTS & EVENT WIRING
+    // =========================================================================
+    function initInteractions() {
+      // IME-safe Enter handler for adding a subtask row in Task Modal
+      const subtaskInput = document.getElementById('newSubtaskInput');
+      if (subtaskInput) {
+        subtaskInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            if (event.isComposing || event.keyCode === 229) return;
+            addSubtaskRow();
+          }
+        });
+      }
+
+      // Cmd/Ctrl + Enter shortcut to submit Bulk Add form
+      const bulkInput = document.getElementById('bulkTasksInput');
+      const bulkForm = document.getElementById('bulkTaskForm');
+      if (bulkInput && bulkForm) {
+        bulkInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            bulkForm.requestSubmit();
+          }
+        });
+      }
+
+      // Fallback light-dismiss for browsers without native <dialog closedby="any"> (e.g. Safari)
+      if (!('closedBy' in HTMLDialogElement.prototype)) {
+        const outside = (e, dialog) => {
+          const r = dialog.getBoundingClientRect();
+          return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+        };
+        for (const dialog of document.querySelectorAll('dialog[closedby="any"]')) {
+          let pressedOutside = false;
+          dialog.addEventListener('pointerdown', (e) => { pressedOutside = outside(e, dialog); });
+          dialog.addEventListener('pointerup', (e) => {
+            if (pressedOutside && outside(e, dialog)) dialog.close();
+          });
+        }
+      }
+
+      // Close legacy div modals on Escape key
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeTaskModal();
+          closePersonaModal();
+          closeFocusLauncher();
+        }
+      });
+    }
+
+    function bootApp() {
+      initInteractions();
+      renderAll();
+
+      // If GitHub Gist sync is already configured, check for newer remote updates on load
+      if (gistConfig.enabled && gistConfig.token && gistConfig.gistId) {
+        pullFromGist({ silent: true, onlyIfNewer: true });
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootApp);
+    } else {
+      bootApp();
+    }
+  </script>
+</body>
+</html>
